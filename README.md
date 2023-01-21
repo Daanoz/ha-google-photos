@@ -1,151 +1,106 @@
-# Notice
-
-The component and platforms in this repository are not meant to be used by a
-user, but as a "blueprint" that custom component developers can build
-upon, to make more awesome stuff.
-
-HAVE FUN! 😎
-
-## Why?
-
-This is simple, by having custom_components look (README + structure) the same
-it is easier for developers to help each other and for users to start using them.
-
-If you are a developer and you want to add things to this "blueprint" that you think more
-developers will have use for, please open a PR to add it :)
-
-## What?
-
-This repository contains multiple files, here is a overview:
-
-File | Purpose
--- | --
-`.devcontainer/*` | Used for development/testing with VSCODE, more info in the readme file in that dir.
-`.github/ISSUE_TEMPLATE/feature_request.md` | Template for Feature Requests
-`.github/ISSUE_TEMPLATE/issue.md` | Template for issues
-`.vscode/tasks.json` | Tasks for the devcontainer.
-`custom_components/integration_blueprint/translations/*` | [Translation files.](https://developers.home-assistant.io/docs/internationalization/custom_integration)
-`custom_components/integration_blueprint/__init__.py` | The component file for the integration.
-`custom_components/integration_blueprint/api.py` | This is a sample API client.
-`custom_components/integration_blueprint/binary_sensor.py` | Binary sensor platform for the integration.
-`custom_components/integration_blueprint/config_flow.py` | Config flow file, this adds the UI configuration possibilities.
-`custom_components/integration_blueprint/const.py` | A file to hold shared variables/constants for the entire integration.
-`custom_components/integration_blueprint/manifest.json` | A [manifest file](https://developers.home-assistant.io/docs/en/creating_integration_manifest.html) for Home Assistant.
-`custom_components/integration_blueprint/sensor.py` | Sensor platform for the integration.
-`custom_components/integration_blueprint/switch.py` | Switch sensor platform for the integration.
-`tests/__init__.py` | Makes the `tests` folder a module.
-`tests/conftest.py` | Global [fixtures](https://docs.pytest.org/en/stable/fixture.html) used in tests to [patch](https://docs.python.org/3/library/unittest.mock.html#unittest.mock.patch) functions.
-`tests/test_api.py` | Tests for `custom_components/integration_blueprint/api.py`.
-`tests/test_config_flow.py` | Tests for `custom_components/integration_blueprint/config_flow.py`.
-`tests/test_init.py` | Tests for `custom_components/integration_blueprint/__init__.py`.
-`tests/test_switch.py` | Tests for `custom_components/integration_blueprint/switch.py`.
-`CONTRIBUTING.md` | Guidelines on how to contribute.
-`example.png` | Screenshot that demonstrate how it might look in the UI.
-`info.md` | An example on a info file (used by [hacs][hacs]).
-`LICENSE` | The license file for the project.
-`README.md` | The file you are reading now, should contain info about the integration, installation and configuration instructions.
-`requirements.txt` | Python packages used by this integration.
-`requirements_dev.txt` | Python packages used to provide [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense)/code hints during development of this integration, typically includes packages in `requirements.txt` but may include additional packages
-`requirements_test.txt` | Python packages required to run the tests for this integration, typically includes packages in `requirements_dev.txt` but may include additional packages
-
-## How?
-
-If you want to use all the potential and features of this blueprint template you
-should use Visual Studio Code to develop in a container. In this container you
-will have all the tools to ease your python development and a dedicated Home
-Assistant core instance to run your integration. See `.devcontainer/README.md` for more information.
-
-If you need to work on the python library in parallel of this integration
-(`sampleclient` in this example) there are different options. The following one seems
-easy to implement:
-
-- Create a dedicated branch for your python library on a public git repository (example: branch
-`dev` on `https://github.com/ludeeus/sampleclient`)
-- Update in the `manifest.json` file the `requirements` key to point on your development branch
-( example: `"requirements": ["git+https://github.com/ludeeus/sampleclient.git@dev#devp==0.0.1beta1"]`)
-- Each time you need to make a modification to your python library, push it to your
-development branch and increase the number of the python library version in `manifest.json` file
-to ensure Home Assistant update the code of the python library. (example `"requirements": ["git+https://...==0.0.1beta2"]`).
-
-
-***
-README content if this was a published component:
-***
-
-# integration_blueprint
+# Google Photos Integration for Home Assistant
 
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]
-[![License][license-shield]](LICENSE)
+[![License][license-shield]][license]
 
 [![hacs][hacsbadge]][hacs]
-![Project Maintenance][maintenance-shield]
+[![Project Maintenance][maintenance-shield]][user_profile]
 [![BuyMeCoffee][buymecoffeebadge]][buymecoffee]
 
 [![Discord][discord-shield]][discord]
 [![Community Forum][forum-shield]][forum]
 
-_Component to integrate with [integration_blueprint][integration_blueprint]._
+This integration adds for every album in your Google Photos account a `camera` entity to your Home Assistant setup. The entity will be showing media from your Google Photo album so you can add some personalization to your dashboards.
 
 **This component will set up the following platforms.**
 
 Platform | Description
 -- | --
-`binary_sensor` | Show something `True` or `False`.
-`sensor` | Show info from blueprint API.
-`switch` | Switch something `True` or `False`.
+`camera` | Google Photos Album
 
 ![example][exampleimg]
 
 ## Installation
 
+### HACS
+1. Find the integration as `Google Photos`
+1. Click install.
+1. Restart Home Assistant.
+
+### Manual
 1. Using the tool of choice open the directory (folder) for your HA configuration (where you find `configuration.yaml`).
-2. If you do not have a `custom_components` directory (folder) there, you need to create it.
-3. In the `custom_components` directory (folder) create a new folder called `integration_blueprint`.
-4. Download _all_ the files from the `custom_components/integration_blueprint/` directory (folder) in this repository.
-5. Place the files you downloaded in the new directory (folder) you created.
-6. Restart Home Assistant
-7. In the HA UI go to "Configuration" -> "Integrations" click "+" and search for "Integration blueprint"
+1. If you do not have a `custom_components` directory (folder) there, you need to create it.
+1. In the `custom_components` directory (folder) create a new folder called `google_photos`.
+1. Download _all_ the files from the `custom_components/google_photos/` directory (folder) in this repository.
+1. Place the files you downloaded in the new directory (folder) you created.
+1. Restart Home Assistant
 
-Using your HA configuration directory (folder) as a starting point you should now also have this:
+## Configuration
+1. In the HA UI go to "Configuration" -> "Integrations" click "+" and search for "Google Photos".
+1. Generate a Client ID and Client Secret on Google Developers Console. The authentication procedure in this integration is based of the [Google Mail](https://next.home-assistant.io/integrations/google_mail/) integration.
+    1. First, go to the Google Developers Console to enable [Photos Library API](https://console.cloud.google.com/apis/library/photoslibrary.googleapis.com)
+    1. The wizard will ask you to choose a project to manage your application. Select a project and click continue.
+    1. Verify that your Photos Library API was enabled and click ‘Go to credentials’
+    1. Navigate to APIs & Services (left sidebar) > [Credentials](https://console.cloud.google.com/apis/credentials)
+    1. Click on the field on the left of the screen, OAuth Consent Screen.
+    1. Select External and Create.
+    1. Set the App Name (the name of the application asking for consent) to anything you want, e.g., Home Assistant.
+    1. You then need to select a Support email. To do this, click the drop-down box and select your email address.
+    1. You finally need to complete the section: Developer contact information. To do this, enter your email address (the same as above is fine).
+    1. Scroll to the bottom and click Save and Continue. You don’t have to fill out anything else, or it may enable additional review.
+    1. You will then be automatically taken to the Scopes page. You do not need to add any scopes here, so click Save and Continue to move to the Optional info page. You do not need to add anything to the Optional info page, so click Save and Continue, which will take you to the Summary page. Click Back to Dashboard.
+    1. Click OAuth consent screen again and set Publish Status to Production otherwise your credentials will expire every 7 days.
+    1. Make sure Publishing status is set to production.
+    1. Click Credentials in the menu on the left-hand side of the screen, then click Create credentials (at the top of the screen), then select OAuth client ID.
+    1. Set the Application type to Web application and give this credential set a name (like “Home Assistant Credentials”).
+    1. Add [https://my.home-assistant.io/redirect/oauth](https://my.home-assistant.io/redirect/oauth) to Authorized redirect URIs then click Create.
+    1/ You will then be presented with a pop-up saying OAuth client created showing Your Client ID and Your Client Secret. Make a note of these (for example, copy and paste them into a text editor), as you will need these shortly. Once you have noted these strings, click OK. If you need to find these credentials again at any point, then navigate to APIs & Services > Credentials, and you will see Home Assistant Credentials (or whatever you named them in the previous step) under OAuth 2.0 Client IDs. To view both the Client ID and Client secret, click on the pencil icon; this will take you to the settings page for these credentials, and the information will be on the right-hand side of the page.
+    1. Double-check that the Photos Library API has been automatically enabled. To do this, select Library from the menu, then search for Photos Library API. If it is enabled you will see API Enabled with a green tick next to it. If it is not enabled, then enable it.
+1. Provide the integration with a client id and client secret to use with th Google Photos Library api.
+1. Continue through the steps of selecting the account you want to authorize.
+1. **NOTE**: You may get a message telling you that the app has not been verified and you will need to acknowledge that in order to proceed.
+1. You can now see the details of what you are authorizing Home Assistant to access with two options at the bottom. Click **Continue**.
+1. The page will now display *Link account to Home Assistant?*, note Your instance URL. If this is not correct, please refer to [My Home Assistant](https://next.home-assistant.io/integrations/my). If everything looks good, click **Link Account**.
+1. You may close the window, and return back to Home Assistant where you should see a Success! message from Home Assistant.
 
-```text
-custom_components/integration_blueprint/translations/en.json
-custom_components/integration_blueprint/translations/nb.json
-custom_components/integration_blueprint/translations/sensor.nb.json
-custom_components/integration_blueprint/__init__.py
-custom_components/integration_blueprint/api.py
-custom_components/integration_blueprint/binary_sensor.py
-custom_components/integration_blueprint/config_flow.py
-custom_components/integration_blueprint/const.py
-custom_components/integration_blueprint/manifest.json
-custom_components/integration_blueprint/sensor.py
-custom_components/integration_blueprint/switch.py
-```
+After the setup is complete a device will be created with multiple entities, each entity being one of the albums in the linked account. Note that only one album will enabled initially to avoid overloading your setup, feel free to enable the ones you want to use.
 
-## Configuration is done in the UI
+## Notes / Remarks / Limitations
 
-<!---->
+- Currently the album media is cached for 30 minutes.
+- New albums can only be added by reloading the integration or restarting HA.
+
+## Future plans
+
+- Improved updating of albums
+- Support for videos
+- Support loading media using [content categories](https://developers.google.com/photos/library/guides/apply-filters#content-categories)
+- Support loading media filtered by date/time
+- Custom photo carousel fronted component
 
 ## Contributions are welcome!
 
 If you want to contribute to this please read the [Contribution guidelines](CONTRIBUTING.md)
 
+<!---->
+
 ***
 
-[integration_blueprint]: https://github.com/custom-components/integration_blueprint
-[buymecoffee]: https://www.buymeacoffee.com/ludeeus
+[buymecoffee]: https://www.buymeacoffee.com/Daanoz
 [buymecoffeebadge]: https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg?style=for-the-badge
-[commits-shield]: https://img.shields.io/github/commit-activity/y/custom-components/blueprint.svg?style=for-the-badge
-[commits]: https://github.com/custom-components/integration_blueprint/commits/master
-[hacs]: https://github.com/custom-components/hacs
+[commits-shield]: https://img.shields.io/github/commit-activity/y/daanoz/ha-google-photos.svg?style=for-the-badge
+[commits]: https://github.com/daanoz/ha-google-photos/commits/master
+[hacs]: https://hacs.xyz
 [hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
-[discord]: https://discord.gg/Qa5fW2R
+[discord]: https://discord.com/invite/home-assistant
 [discord-shield]: https://img.shields.io/discord/330944238910963714.svg?style=for-the-badge
 [exampleimg]: example.png
 [forum-shield]: https://img.shields.io/badge/community-forum-brightgreen.svg?style=for-the-badge
 [forum]: https://community.home-assistant.io/
-[license-shield]: https://img.shields.io/github/license/custom-components/blueprint.svg?style=for-the-badge
-[maintenance-shield]: https://img.shields.io/badge/maintainer-Joakim%20Sørensen%20%40ludeeus-blue.svg?style=for-the-badge
-[releases-shield]: https://img.shields.io/github/release/custom-components/blueprint.svg?style=for-the-badge
-[releases]: https://github.com/custom-components/integration_blueprint/releases
+[license]: https://github.com/daanoz/ha-google-photos/blob/main/LICENSE
+[license-shield]: https://img.shields.io/github/license/custom-components/integration_blueprint.svg?style=for-the-badge
+[maintenance-shield]: https://img.shields.io/badge/maintainer-Daan%20Sieben%20%40Daanoz-blue.svg?style=for-the-badge
+[releases-shield]: https://img.shields.io/github/release/daanoz/ha-google-photos.svg?style=for-the-badge
+[releases]: https://github.com/daanoz/ha-google-photos/releases
+[user_profile]: https://github.com/daanoz

@@ -1,0 +1,19 @@
+next_media:
+  name: Next media
+  description: Load next media from album
+  target:
+    entity:
+      integration: google_photos
+      domain: camera
+  fields:
+    mode:
+      name: Mode
+      description: Selection of next media
+      required: false
+      example: "RANDOM"
+      default: "RANDOM"
+      selector:
+        select:
+          options:
+            - "RANDOM"
+            - "ALBUM_ORDER"

@@ -2,5 +2,8 @@
     "name": "Google Photos",
     "hacs": "1.6.0",
     "homeassistant": "2022.6.0",
-    "render_readme": true
+    "render_readme": true,
+    "zip_release": true,
+    "filename": "google_photos.zip",
+    "hide_default_branch": true
 }

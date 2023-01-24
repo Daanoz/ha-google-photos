@@ -7,7 +7,7 @@
   "issue_tracker": "https://github.com/daanoz/ha-google-photos/issues",
   "dependencies": ["application_credentials"],
   "requirements": ["google-api-python-client==2.71.0"],
-  "version": "0.0.0",
+  "version": "v0.0.0",
   "codeowners": [
     "@daanoz"
   ],

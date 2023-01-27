@@ -23,7 +23,7 @@ Platform | Description
 
 ## Installation
 
-### HACS
+### HACS (Once available)
 1. Find the integration as `Google Photos`
 1. Click install.
 1. Restart Home Assistant.
@@ -66,6 +66,26 @@ Platform | Description
 
 After the setup is complete a device will be created with multiple entities, each entity being one of the albums in the linked account. Note that only one album will enabled initially to avoid overloading your setup, feel free to enable the ones you want to use.
 
+## Service
+
+It is possible to control the album using the service exposed by `google_photos`.
+
+### Go to next media
+
+#### Example
+```
+service: google_photos.next_media
+data:
+  entity_id: camera.google_photos_library_favorites
+  mode: RANDOM
+```
+
+#### Key Descriptions
+| Key | Required | Default | Description |
+| --- | --- | --- | --- |
+| entity_id | Yes | | Entity name of a Google Photo album camera. |
+| mode | No | `RANDOM` | Selection mode next image, either `RANDOM` or `ALBUM_ORDER` |
+
 ## Notes / Remarks / Limitations
 
 - Currently the album media is cached for 30 minutes.
@@ -78,6 +98,7 @@ After the setup is complete a device will be created with multiple entities, eac
 - Support loading media using [content categories](https://developers.google.com/photos/library/guides/apply-filters#content-categories)
 - Support loading media filtered by date/time
 - Custom photo carousel fronted component
+- Add trigger on new media
 
 ## Contributions are welcome!
 

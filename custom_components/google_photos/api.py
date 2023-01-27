@@ -3,12 +3,14 @@ from aiohttp import ClientSession
 from google.auth.exceptions import RefreshError
 from google.oauth2.credentials import Credentials
 from google.oauth2.utils import OAuthClientAuthHandler
-from googleapiclient.discovery import Resource, build
+from googleapiclient.discovery import build
 from googleapiclient.discovery_cache.base import Cache
 
 from homeassistant.core import HomeAssistant
 from homeassistant.const import CONF_ACCESS_TOKEN
 from homeassistant.helpers import config_entry_oauth2_flow
+
+from .api_types import PhotosLibraryService
 
 
 class AsyncConfigEntryAuth(OAuthClientAuthHandler):
@@ -34,7 +36,7 @@ class AsyncConfigEntryAuth(OAuthClientAuthHandler):
         await self.oauth_session.async_ensure_token_valid()
         return self.access_token
 
-    async def get_resource(self, hass: HomeAssistant) -> Resource:
+    async def get_resource(self, hass: HomeAssistant) -> PhotosLibraryService:
         """Get current resource."""
 
         try:
@@ -43,7 +45,7 @@ class AsyncConfigEntryAuth(OAuthClientAuthHandler):
             self.oauth_session.config_entry.async_start_reauth(self.oauth_session.hass)
             raise ex
 
-        def get_photoslibrary() -> Resource:
+        def get_photoslibrary() -> PhotosLibraryService:
             return build(
                 "photoslibrary",
                 "v1",

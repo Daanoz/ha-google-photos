@@ -2,7 +2,7 @@
 from __future__ import annotations
 import asyncio
 from datetime import datetime
-from typing import Iterable, Any
+from typing import Dict, List
 import random
 import logging
 
@@ -19,13 +19,14 @@ from homeassistant.components.camera import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_platform
-from homeassistant.helpers.entity import DeviceInfo, Entity, EntityDescription
+from homeassistant.helpers.entity import DeviceInfo, EntityDescription
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.aiohttp_client import (
     async_get_clientsession,
 )
 
 from .api import AsyncConfigEntryAuth
+from .api_types import Album, MediaItem, PhotosLibraryService
 
 from .const import (
     CONF_INTERVAL,
@@ -49,6 +50,8 @@ CAMERA_TYPE = CameraEntityDescription(
     key="album_image", name="Album image", icon="mdi:image"
 )
 
+THIRTY_MINUTES = 60 * 30
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -56,10 +59,10 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up the Google Photos camera."""
-    auth = hass.data[DOMAIN][entry.entry_id]
+    auth: AsyncConfigEntryAuth = hass.data[DOMAIN][entry.entry_id]
     service = await auth.get_resource(hass)
 
-    def _get_albums() -> Iterable[dict[str, Any]]:
+    def _get_albums() -> List[Album]:
         result = service.albums().list(pageSize=50).execute()
         album_list = result["albums"]
         while "nextPageToken" in result and result["nextPageToken"] != "":
@@ -73,7 +76,7 @@ async def async_setup_entry(
 
     albums = await hass.async_add_executor_job(_get_albums)
 
-    def as_camera(album):
+    def as_camera(album: Album):
         return GooglePhotosAlbumCamera(
             hass.data[DOMAIN][entry.entry_id], album, CAMERA_TYPE
         )
@@ -100,16 +103,18 @@ async def async_setup_entry(
 class GooglePhotosBaseCamera(Camera):
     """Base class Google Photos Camera class."""
 
+    _auth: AsyncConfigEntryAuth
     _attr_has_entity_name = True
     _attr_entity_registry_enabled_default = False
     _attr_icon = "mdi:image"
 
-    _media_id = None
-    _media_cache = {}
+    _media_id: str | None = None
+    _media_item: MediaItem | None = None
+    _media_cache: Dict[str, bytes] = {}
     _media_timestamp = datetime.now()
     _is_loading_next = False
 
-    _album_cache = None
+    _album_cache: List[MediaItem] | None = None
     _album_timestamp = None
 
     def __init__(
@@ -119,7 +124,7 @@ class GooglePhotosBaseCamera(Camera):
     ) -> None:
         """Initialize a Google Photos Base Camera class."""
         super().__init__()
-        self.auth = auth
+        self._auth = auth
         self.entity_description = description
         self._attr_native_value = "Cover photo"
         self._attr_frame_interval = 10
@@ -144,38 +149,40 @@ class GooglePhotosBaseCamera(Camera):
             return
         self._is_loading_next = True
 
-        mode = mode or self._get_config_option(CONF_MODE, MODE_DEFAULT_OPTION)
-        service = await self.auth.get_resource(self.hass)
-        current_media = self._media_id or ""
+        try:
+            mode = mode or self._get_config_option(CONF_MODE, MODE_DEFAULT_OPTION)
+            service = await self._auth.get_resource(self.hass)
+            current_media = self._media_id or ""
 
-        def _get_media_random() -> dict[str, Any] | None:
-            media_list = self._get_album_media(service)
-            if len(media_list) < 1:
-                return None
-            return random.choice(media_list)
+            def _get_media_random() -> MediaItem | None:
+                media_list = self._get_album_media(service)
+                if len(media_list) < 1:
+                    return None
+                return random.choice(media_list)
 
-        def _get_media_sequence() -> dict[str, Any] | None:
-            media_list = self._get_album_media(service)
-            if len(media_list) < 1:
-                return None
-            current_index = -1
-            for index, media in enumerate(media_list):
-                if media["id"] == current_media:
-                    current_index = index
-                    break
-            current_index = current_index + 1
-            current_index = current_index % len(media_list)
-            return media_list[current_index]
+            def _get_media_sequence() -> MediaItem | None:
+                media_list = self._get_album_media(service)
+                if len(media_list) < 1:
+                    return None
+                current_index = -1
+                for index, media in enumerate(media_list):
+                    if media["id"] == current_media:
+                        current_index = index
+                        break
+                current_index = current_index + 1
+                current_index = current_index % len(media_list)
+                return media_list[current_index]
 
-        if mode == MODE_OPTION_ALBUM_ORDER:
-            media_item = await self.hass.async_add_executor_job(_get_media_sequence)
-        else:
-            media_item = await self.hass.async_add_executor_job(_get_media_random)
+            if mode == MODE_OPTION_ALBUM_ORDER:
+                media_item = await self.hass.async_add_executor_job(_get_media_sequence)
+            else:
+                media_item = await self.hass.async_add_executor_job(_get_media_random)
 
-        if media_item is not None:
-            self._set_media(media_item)
-        self._is_loading_next = False
-        self._media_timestamp = datetime.now()
+            if media_item is not None:
+                self._set_media(media_item)
+            self._media_timestamp = datetime.now()
+        finally:
+            self._is_loading_next = False
 
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
@@ -191,15 +198,16 @@ class GooglePhotosBaseCamera(Camera):
         if size_str in self._media_cache:
             return self._media_cache[size_str]
 
-        service = await self.auth.get_resource(self.hass)
+        service = await self._auth.get_resource(self.hass)
 
-        def _get_media_url() -> Iterable[dict[str, Any]]:
-            media_item = service.mediaItems().get(mediaItemId=self._media_id).execute()
-            return media_item["baseUrl"]
+        def _get_media_url() -> str:
+            self._media_item = (
+                service.mediaItems().get(mediaItemId=self._media_id).execute()
+            )
+            return self._media_item["baseUrl"]
 
         media_url = await self.hass.async_add_executor_job(_get_media_url)
         _LOGGER.debug("Loading %s", media_url)
-
         websession = async_get_clientsession(self.hass)
         try:
             async with async_timeout.timeout(10):
@@ -231,15 +239,16 @@ class GooglePhotosBaseCamera(Camera):
     def _get_config_option(self, prop, default) -> ConfigEntry:
         """Get config option."""
         config = self.hass.config_entries.async_get_entry(
-            self.auth.oauth_session.config_entry.entry_id
+            self._auth.oauth_session.config_entry.entry_id
         )
         if config.options is not None and prop in config.options:
             return config.options[prop]
         return default
 
-    def _set_media(self, media) -> None:
+    def _set_media(self, media: MediaItem) -> None:
         """Set next media."""
         self._set_media_id(media["id"])
+        self._media_item = media
         write_metadata = self._get_config_option(
             CONF_WRITEMETADATA, WRITEMETADATA_DEFAULT_OPTION
         )
@@ -259,30 +268,37 @@ class GooglePhotosBaseCamera(Camera):
         self._media_id = media_id
         self._media_cache = {}
 
-    def _get_album_media(self, service) -> [Any]:
+    def _get_album_media(self, service: PhotosLibraryService) -> List[MediaItem] | None:
         if self._album_cache is not None:
             cache_delta = (datetime.now() - self._album_timestamp).total_seconds()
-            thirty_minutes = 60 * 30
-            if cache_delta < thirty_minutes:
+            if cache_delta < THIRTY_MINUTES:
                 return self._album_cache
 
         media_list = self._get_album_media_list(service)
+        if media_list is None:
+            return None
 
         self._album_cache = media_list
         self._album_timestamp = datetime.now()
         return media_list
 
-    def _get_album_media_list(self, service) -> [Any]:
+    def _get_album_media_list(
+        self, service: PhotosLibraryService
+    ) -> List[MediaItem] | None:
         raise NotImplementedError("To be implemented by subclass")
+
+
 
 
 class GooglePhotosAlbumCamera(GooglePhotosBaseCamera):
     """Representation of a Google Photos Album camera."""
 
+    album: Album
+
     def __init__(
         self,
         auth: AsyncConfigEntryAuth,
-        album: dict[str, Any],
+        album: Album,
         description: EntityDescription,
     ) -> None:
         """Initialize a Google Photos album."""
@@ -292,7 +308,9 @@ class GooglePhotosAlbumCamera(GooglePhotosBaseCamera):
         self._attr_unique_id = album["id"]
         self._set_media_id(album["coverPhotoMediaItemId"])
 
-    def _get_album_media_list(self, service) -> [Any]:
+    def _get_album_media_list(
+        self, service: PhotosLibraryService
+    ) -> List[MediaItem] | None:
         album_id = self.album["id"]
 
         result = (
@@ -337,7 +355,9 @@ class GooglePhotosFavoritesCamera(GooglePhotosBaseCamera):
     async def async_added_to_hass(self) -> None:
         await self.next_media()
 
-    def _get_album_media_list(self, service) -> [Any]:
+    def _get_album_media_list(
+        self, service: PhotosLibraryService
+    ) -> List[MediaItem] | None:
         filters = {"featureFilter": {"includedFeatures": ["FAVORITES"]}}
         result = (
             service.mediaItems()

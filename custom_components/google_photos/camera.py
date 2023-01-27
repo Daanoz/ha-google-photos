@@ -281,6 +281,12 @@ class GooglePhotosBaseCamera(Camera):
         if media_list is None:
             return None
 
+        # No support for video at the moment
+        def is_photo(media: MediaItem) -> bool:
+            return (media.get("mediaMetadata") or {}).get("photo") is not None
+
+        media_list = list(filter(is_photo, media_list))
+
         self._album_cache = media_list
         self._album_timestamp = datetime.now()
         return media_list

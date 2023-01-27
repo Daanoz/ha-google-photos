@@ -201,6 +201,9 @@ class GooglePhotosBaseCamera(Camera):
         service = await self._auth.get_resource(self.hass)
 
         def _get_media_url() -> str:
+            media_item_age = (datetime.now() - self._media_timestamp).total_seconds()
+            if self._media_item is not None and media_item_age < THIRTY_MINUTES:
+                return self._media_item["baseUrl"]
             self._media_item = (
                 service.mediaItems().get(mediaItemId=self._media_id).execute()
             )

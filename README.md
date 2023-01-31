@@ -66,6 +66,26 @@ Platform | Description
 
 After the setup is complete a device will be created with multiple entities, each entity being one of the albums in the linked account. Note that only one album will enabled initially to avoid overloading your setup, feel free to enable the ones you want to use.
 
+## Card setups
+
+### Dashboard Picture card
+
+```
+show_state: false
+show_name: false
+camera_view: auto
+type: picture-entity
+entity: camera.google_photos_library_favorites
+aspect_ratio: '1:1'
+tap_action:
+  action: call-service
+  service: google_photos.next_media
+  data:
+    mode: RANDOM
+  target:
+    entity_id: camera.google_photos_library_favorites
+```
+
 ## Service
 
 It is possible to control the album using the service exposed by `google_photos`.

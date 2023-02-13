@@ -11,7 +11,7 @@
 [![Discord][discord-shield]][discord]
 [![Community Forum][forum-shield]][forum]
 
-This integration adds for every album in your Google Photos account a `camera` entity to your Home Assistant setup. The entity will be showing media from your Google Photo album so you can add some personalization to your dashboards.
+This integration allows you to add albums from your Google Photos account as a `camera` entity to your Home Assistant setup. The entity will be showing media from your Google Photo album so you can add some personalization to your dashboards.
 
 **This component will set up the following platforms.**
 
@@ -64,7 +64,7 @@ Platform | Description
 1. The page will now display *Link account to Home Assistant?*, note Your instance URL. If this is not correct, please refer to [My Home Assistant](https://next.home-assistant.io/integrations/my). If everything looks good, click **Link Account**.
 1. You may close the window, and return back to Home Assistant where you should see a Success! message from Home Assistant.
 
-After the setup is complete a device will be created with multiple entities, each entity being one of the albums in the linked account. Note that only one album will enabled initially to avoid overloading your setup, feel free to enable the ones you want to use.
+After the setup is complete a device will be created with entity for your favorite photos. To add more albums from you account, click configure on the integration card.
 
 ## Card setups
 
@@ -109,11 +109,9 @@ data:
 ## Notes / Remarks / Limitations
 
 - Currently the album media is cached for 30 minutes.
-- New albums can only be added by reloading the integration or restarting HA.
 
 ## Future plans
 
-- Improved updating of albums
 - Support for videos
 - Support loading media using [content categories](https://developers.google.com/photos/library/guides/apply-filters#content-categories)
 - Support loading media filtered by date/time

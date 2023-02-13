@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import logging
-from typing import Any
+from typing import Any, List
 import voluptuous as vol
 
 from google.oauth2.credentials import Credentials
@@ -16,6 +16,7 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_entry_oauth2_flow
 
+from .api_types import PhotosLibraryService, Album
 from .const import (
     DEFAULT_ACCESS,
     DOMAIN,
@@ -26,7 +27,9 @@ from .const import (
     INTERVAL_OPTIONS,
     INTERVAL_DEFAULT_OPTION,
     CONF_WRITEMETADATA,
-    WRITEMETADATA_DEFAULT_OPTION
+    WRITEMETADATA_DEFAULT_OPTION,
+    CONF_ALBUM_ID,
+    CONF_ALBUM_ID_FAVORITES,
 )
 
 
@@ -36,6 +39,7 @@ class OAuth2FlowHandler(
     """Config flow to handle Google Photos OAuth2 authentication."""
 
     DOMAIN = DOMAIN
+    VERSION = 2
 
     reauth_entry: ConfigEntry | None = None
 
@@ -89,7 +93,9 @@ class OAuth2FlowHandler(
         await self.async_set_unique_id(email)
         self._abort_if_unique_id_configured()
 
-        return self.async_create_entry(title=email, data=data)
+        options = dict()
+        options[CONF_ALBUM_ID] = [CONF_ALBUM_ID_FAVORITES]
+        return self.async_create_entry(title=email, data=data, options=options)
 
     @staticmethod
     @callback
@@ -107,10 +113,85 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         """Initialize options flow."""
         self.config_entry = config_entry
 
+    @property
+    def logger(self) -> logging.Logger:
+        """Return logger."""
+        return logging.getLogger(__name__)
+
+    async def _get_albumselect_schema(self) -> vol.Schema:
+        """Return album selection form"""
+
+        credentials = Credentials(self.config_entry.data[CONF_TOKEN][CONF_ACCESS_TOKEN])
+
+        def get_photoslibrary() -> PhotosLibraryService:
+            return build(
+                "photoslibrary",
+                "v1",
+                credentials=credentials,
+                static_discovery=False,
+            )
+
+        def get_albums() -> List[Album]:
+            service: PhotosLibraryService = get_photoslibrary()
+            result = service.albums().list(pageSize=50).execute()
+            album_list = result["albums"]
+            while "nextPageToken" in result and result["nextPageToken"] != "":
+                result = (
+                    service.albums()
+                    .list(pageSize=50, pageToken=result["nextPageToken"])
+                    .execute()
+                )
+                album_list = album_list + result["albums"]
+            return album_list
+
+        albums = await self.hass.async_add_executor_job(get_albums)
+        album_selection = dict({CONF_ALBUM_ID_FAVORITES: "Favorites"})
+        for album in albums:
+            album_selection[album["id"]] = album["title"]
+
+        return vol.Schema(
+            {
+                vol.Required(CONF_ALBUM_ID): vol.In(album_selection),
+            }
+        )
+
     async def async_step_init(self, user_input=None):
         """Handle options flow."""
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["albumselect", "settings"],
+            description_placeholders={
+                "model": "Example model",
+            },
+        )
+
+    async def async_step_albumselect(
+        self, user_input: dict[str, Any] = None
+    ) -> FlowResult:
+        """Set the album used."""
+        self.logger.debug(
+            "async_albumselect_confirm called with user_input: %s", user_input
+        )
+
+        # user input was not provided.
+        if user_input is None:
+            data_schema = await self._get_albumselect_schema()
+            return self.async_show_form(step_id="albumselect", data_schema=data_schema)
+
+        album_id = user_input[CONF_ALBUM_ID]
+        albums = self.config_entry.options.get(CONF_ALBUM_ID, []).copy()
+        if album_id not in albums:
+            albums.append(album_id)
+        data = self.config_entry.options.copy()
+        data.update({CONF_ALBUM_ID: albums})
+        return self.async_create_entry(title="", data=data)
+
+    async def async_step_settings(self, user_input=None):
+        """Handle options flow."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            data = self.config_entry.options.copy()
+            data.update(user_input)
+            return self.async_create_entry(title="", data=data)
 
         data_schema = vol.Schema(
             {
@@ -134,4 +215,4 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 ): bool,
             }
         )
-        return self.async_show_form(step_id="init", data_schema=data_schema)
+        return self.async_show_form(step_id="settings", data_schema=data_schema)

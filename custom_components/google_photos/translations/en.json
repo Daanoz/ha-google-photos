@@ -33,6 +33,20 @@
     "options": {
         "step": {
             "init": {
+              "menu_options": {
+                "albumselect": "Select album",
+                "settings": "Settings"
+              },
+              "title": "Adjust Google Photos options"
+            },
+            "albumselect": {
+              "data": {
+                  "album_id": "Album"
+              },
+              "title": "Select album to add",
+              "description": "Album will be added as a seperate entity after a short period of time."
+            },
+            "settings": {
                 "data": {
                     "mode": "Selection mode.",
                     "interval": "Refresh interval",

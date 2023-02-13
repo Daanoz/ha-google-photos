@@ -9,6 +9,9 @@ DEFAULT_ACCESS = [
     "https://www.googleapis.com/auth/photoslibrary.readonly",
 ]
 
+CONF_ALBUM_ID = "album_id"
+CONF_ALBUM_ID_FAVORITES = "FAVORITES"
+
 CONF_MODE = "mode"
 MODE_OPTION_RANDOM = "RANDOM"
 MODE_OPTION_ALBUM_ORDER = "ALBUM_ORDER"

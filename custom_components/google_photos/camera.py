@@ -40,6 +40,8 @@ from .const import (
     MODE_OPTIONS,
     CONF_WRITEMETADATA,
     WRITEMETADATA_DEFAULT_OPTION,
+    CONF_ALBUM_ID,
+    CONF_ALBUM_ID_FAVORITES,
 )
 
 SERVICE_NEXT_MEDIA = "next_media"
@@ -61,32 +63,27 @@ async def async_setup_entry(
     """Set up the Google Photos camera."""
     auth: AsyncConfigEntryAuth = hass.data[DOMAIN][entry.entry_id]
     service = await auth.get_resource(hass)
+    album_ids = entry.options[CONF_ALBUM_ID]
 
     def _get_albums() -> List[Album]:
-        result = service.albums().list(pageSize=50).execute()
-        album_list = result["albums"]
-        while "nextPageToken" in result and result["nextPageToken"] != "":
-            result = (
-                service.albums()
-                .list(pageSize=50, pageToken=result["nextPageToken"])
-                .execute()
-            )
-            album_list = album_list + result["albums"]
+        album_list = []
+        for album_id in album_ids:
+            if album_id == CONF_ALBUM_ID_FAVORITES:
+                album_list.append(
+                    GooglePhotosFavoritesCamera(
+                        hass.data[DOMAIN][entry.entry_id], CAMERA_TYPE
+                    )
+                )
+            else:
+                album = service.albums().get(albumId=album_id).execute()
+                album_list.append(
+                    GooglePhotosAlbumCamera(
+                        hass.data[DOMAIN][entry.entry_id], album, CAMERA_TYPE
+                    )
+                )
         return album_list
 
-    albums = await hass.async_add_executor_job(_get_albums)
-
-    def as_camera(album: Album):
-        return GooglePhotosAlbumCamera(
-            hass.data[DOMAIN][entry.entry_id], album, CAMERA_TYPE
-        )
-
-    entities = [
-        GooglePhotosFavoritesCamera(hass.data[DOMAIN][entry.entry_id], CAMERA_TYPE)
-    ] + list(map(as_camera, albums))
-    if len(entities) > 0:
-        entities[0].enabled_by_default()
-
+    entities = await hass.async_add_executor_job(_get_albums)
     platform = entity_platform.async_get_current_platform()
     platform.async_register_entity_service(
         SERVICE_NEXT_MEDIA,
@@ -105,7 +102,6 @@ class GooglePhotosBaseCamera(Camera):
 
     _auth: AsyncConfigEntryAuth
     _attr_has_entity_name = True
-    _attr_entity_registry_enabled_default = False
     _attr_icon = "mdi:image"
 
     _media_id: str | None = None
@@ -118,9 +114,7 @@ class GooglePhotosBaseCamera(Camera):
     _album_timestamp = None
 
     def __init__(
-        self,
-        auth: AsyncConfigEntryAuth,
-        description: EntityDescription,
+        self, auth: AsyncConfigEntryAuth, description: EntityDescription
     ) -> None:
         """Initialize a Google Photos Base Camera class."""
         super().__init__()
@@ -131,17 +125,8 @@ class GooglePhotosBaseCamera(Camera):
         self._attr_is_on = True
         self._attr_is_recording = False
         self._attr_is_streaming = False
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, auth.oauth_session.config_entry.entry_id)},
-            manufacturer=MANUFACTURER,
-            name="Google Photos Library",
-        )
         self._attr_should_poll = False
         self._attr_extra_state_attributes = {}
-
-    def enabled_by_default(self) -> None:
-        """Set camera as enabled by default."""
-        self._attr_entity_registry_enabled_default = True
 
     async def next_media(self, mode=None):
         """Load the next media."""
@@ -297,8 +282,6 @@ class GooglePhotosBaseCamera(Camera):
         raise NotImplementedError("To be implemented by subclass")
 
 
-
-
 class GooglePhotosAlbumCamera(GooglePhotosBaseCamera):
     """Representation of a Google Photos Album camera."""
 
@@ -316,6 +299,14 @@ class GooglePhotosAlbumCamera(GooglePhotosBaseCamera):
         self._attr_name = album["title"]
         self._attr_unique_id = album["id"]
         self._set_media_id(album["coverPhotoMediaItemId"])
+        self._attr_device_info = DeviceInfo(
+            identifiers={
+                (DOMAIN, auth.oauth_session.config_entry.entry_id, album["id"])
+            },
+            manufacturer=MANUFACTURER,
+            name="Google Photos - " + album["title"],
+            configuration_url=album["productUrl"],
+        )
 
     def _get_album_media_list(
         self, service: PhotosLibraryService
@@ -360,6 +351,17 @@ class GooglePhotosFavoritesCamera(GooglePhotosBaseCamera):
         super().__init__(auth, description)
         self._attr_name = "Favorites"
         self._attr_unique_id = "library_favorites"
+        self._attr_device_info = DeviceInfo(
+            identifiers={
+                (
+                    DOMAIN,
+                    auth.oauth_session.config_entry.entry_id,
+                    CONF_ALBUM_ID_FAVORITES,
+                )
+            },
+            manufacturer=MANUFACTURER,
+            name="Google Photos - Favorites",
+        )
 
     async def async_added_to_hass(self) -> None:
         await self.next_media()

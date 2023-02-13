@@ -1,6 +1,7 @@
 """Support for Google Photos."""
 from __future__ import annotations
 
+import logging
 from aiohttp.client_exceptions import ClientError, ClientResponseError
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
@@ -20,8 +21,23 @@ from .const import DATA_AUTH, DOMAIN
 PLATFORMS = [Platform.CAMERA]
 
 
+async def async_migrate_entry(hass, config_entry: ConfigEntry):
+    """Migrate old entry."""
+    _LOGGER = logging.getLogger(__name__)
+    _LOGGER.debug("Migrating from version %s", config_entry.version)
+
+    if config_entry.version == 1:
+        _LOGGER.error("Migration failed, please remove / add integration.")
+        return False
+
+    _LOGGER.info("Migration to version %s successful", config_entry.version)
+
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Google Photos from a config entry."""
+    entry.async_on_unload(entry.add_update_listener(update_listener))
     implementation = await async_get_config_entry_implementation(hass, entry)
     session = OAuth2Session(hass, entry, implementation)
     auth = AsyncConfigEntryAuth(async_get_clientsession(hass), session)
@@ -40,6 +56,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.config_entries.async_setup_platforms(entry, PLATFORMS)
 
     return True
+
+
+async def update_listener(hass, entry):
+    """Handle options update."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

@@ -1,48 +1,32 @@
 """Support for Google Photos Albums."""
 from __future__ import annotations
-import asyncio
-from datetime import datetime
-from typing import Dict, List
-import random
+from typing import List
 import logging
 
 import voluptuous as vol
-
-
-import aiohttp
-import async_timeout
 
 from homeassistant.components.camera import (
     Camera,
     CameraEntityDescription,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_platform
-from homeassistant.helpers.entity import DeviceInfo, EntityDescription
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.aiohttp_client import (
-    async_get_clientsession,
-)
 
 from .api import AsyncConfigEntryAuth
-from .api_types import Album, MediaItem, PhotosLibraryService
-
+from .api_types import Album
 from .const import (
-    CONF_INTERVAL,
-    CONF_MODE,
     DOMAIN,
-    INTERVAL_OPTION_NONE,
-    INTERVAL_DEFAULT_OPTION,
     MANUFACTURER,
-    MODE_DEFAULT_OPTION,
-    MODE_OPTION_ALBUM_ORDER,
     MODE_OPTIONS,
     CONF_WRITEMETADATA,
     WRITEMETADATA_DEFAULT_OPTION,
     CONF_ALBUM_ID,
     CONF_ALBUM_ID_FAVORITES,
 )
+from .coordinator import Coordinator
 
 SERVICE_NEXT_MEDIA = "next_media"
 ATTR_MODE = "mode"
@@ -51,8 +35,6 @@ CAMERA_NEXT_MEDIA_SCHEMA = {vol.Optional(ATTR_MODE): vol.In(MODE_OPTIONS)}
 CAMERA_TYPE = CameraEntityDescription(
     key="album_image", name="Album image", icon="mdi:image"
 )
-
-THIRTY_MINUTES = 60 * 30
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -65,25 +47,26 @@ async def async_setup_entry(
     service = await auth.get_resource(hass)
     album_ids = entry.options[CONF_ALBUM_ID]
 
-    def _get_albums() -> List[Album]:
+    def _get_albums() -> List[GooglePhotosBaseCamera]:
         album_list = []
         for album_id in album_ids:
+            coordinator = Coordinator(hass, auth, entry)
             if album_id == CONF_ALBUM_ID_FAVORITES:
                 album_list.append(
-                    GooglePhotosFavoritesCamera(
-                        hass.data[DOMAIN][entry.entry_id], CAMERA_TYPE
-                    )
+                    GooglePhotosFavoritesCamera(entry.entry_id, coordinator)
                 )
             else:
                 album = service.albums().get(albumId=album_id).execute()
                 album_list.append(
-                    GooglePhotosAlbumCamera(
-                        hass.data[DOMAIN][entry.entry_id], album, CAMERA_TYPE
-                    )
+                    GooglePhotosAlbumCamera(entry.entry_id, coordinator, album)
                 )
         return album_list
 
     entities = await hass.async_add_executor_job(_get_albums)
+
+    for entity in entities:
+        await entity.coordinator.async_config_entry_first_refresh()
+
     platform = entity_platform.async_get_current_platform()
     platform.async_register_entity_service(
         SERVICE_NEXT_MEDIA,
@@ -98,148 +81,66 @@ async def async_setup_entry(
 
 
 class GooglePhotosBaseCamera(Camera):
-    """Base class Google Photos Camera class."""
+    """Base class Google Photos Camera class. Implements methods from CoordinatorEntity"""
 
-    _auth: AsyncConfigEntryAuth
+    coordinator: Coordinator
+    coordinator_contxt: dict[str, str | int]
     _attr_has_entity_name = True
     _attr_icon = "mdi:image"
 
-    _media_id: str | None = None
-    _media_item: MediaItem | None = None
-    _media_cache: Dict[str, bytes] = {}
-    _media_timestamp = datetime.now()
-    _is_loading_next = False
-
-    _album_cache: List[MediaItem] | None = None
-    _album_timestamp = None
-
     def __init__(
-        self, auth: AsyncConfigEntryAuth, description: EntityDescription
+        self, coordinator: Coordinator, album_context: dict[str, str | int]
     ) -> None:
         """Initialize a Google Photos Base Camera class."""
         super().__init__()
-        self._auth = auth
-        self.entity_description = description
+        coordinator.set_context(album_context)
+        self.coordinator = coordinator
+        self.coordinator_context = album_context
+        self.entity_description = CAMERA_TYPE
         self._attr_native_value = "Cover photo"
         self._attr_frame_interval = 10
         self._attr_is_on = True
         self._attr_is_recording = False
         self._attr_is_streaming = False
-        self._attr_should_poll = False
         self._attr_extra_state_attributes = {}
 
-    async def next_media(self, mode=None):
-        """Load the next media."""
-        if self._is_loading_next:
-            return
-        self._is_loading_next = True
-
-        try:
-            mode = mode or self._get_config_option(CONF_MODE, MODE_DEFAULT_OPTION)
-            service = await self._auth.get_resource(self.hass)
-            current_media = self._media_id or ""
-
-            def _get_media_random() -> MediaItem | None:
-                media_list = self._get_album_media(service)
-                if len(media_list) < 1:
-                    return None
-                return random.choice(media_list)
-
-            def _get_media_sequence() -> MediaItem | None:
-                media_list = self._get_album_media(service)
-                if len(media_list) < 1:
-                    return None
-                current_index = -1
-                for index, media in enumerate(media_list):
-                    if media["id"] == current_media:
-                        current_index = index
-                        break
-                current_index = current_index + 1
-                current_index = current_index % len(media_list)
-                return media_list[current_index]
-
-            if mode == MODE_OPTION_ALBUM_ORDER:
-                media_item = await self.hass.async_add_executor_job(_get_media_sequence)
-            else:
-                media_item = await self.hass.async_add_executor_job(_get_media_random)
-
-            if media_item is not None:
-                self._set_media(media_item)
-            self._media_timestamp = datetime.now()
-        finally:
-            self._is_loading_next = False
-
-    async def async_camera_image(
-        self, width: int | None = None, height: int | None = None
-    ) -> bytes | None:
-        """Return a still image response from the camera."""
-        await self._check_for_next_media()
-
-        if (self._media_id or "") == "":
-            _LOGGER.error("No media selected for %s", self.name)
-            return None
-
-        size_str = "=w" + str(width or 2048) + "-h" + str(height or 1024)
-        if size_str in self._media_cache:
-            return self._media_cache[size_str]
-
-        service = await self._auth.get_resource(self.hass)
-
-        def _get_media_url() -> str:
-            media_item_age = (datetime.now() - self._media_timestamp).total_seconds()
-            if self._media_item is not None and media_item_age < THIRTY_MINUTES:
-                return self._media_item["baseUrl"]
-            self._media_item = (
-                service.mediaItems().get(mediaItemId=self._media_id).execute()
+    async def async_added_to_hass(self) -> None:
+        """When entity is added to hass."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self.coordinator.async_add_listener(
+                self._handle_coordinator_update, self.coordinator_context
             )
-            return self._media_item["baseUrl"]
-
-        media_url = await self.hass.async_add_executor_job(_get_media_url)
-        _LOGGER.debug("Loading %s", media_url)
-        websession = async_get_clientsession(self.hass)
-        try:
-            async with async_timeout.timeout(10):
-                response = await websession.get(media_url + size_str)
-                image = await response.read()
-                self._media_cache[size_str] = image
-                return image
-
-        except asyncio.TimeoutError:
-            _LOGGER.error("Timeout getting camera image from %s", self.name)
-
-        except aiohttp.ClientError as err:
-            _LOGGER.error("Error getting new camera image from %s: %s", self.name, err)
-
-        return None
-
-    async def _check_for_next_media(self) -> None:
-        selected_interval = self._get_config_option(
-            CONF_INTERVAL, INTERVAL_DEFAULT_OPTION
         )
-        if selected_interval == INTERVAL_OPTION_NONE:
+
+    async def async_update(self) -> None:
+        """Update the entity.
+
+        Only used by the generic entity update service.
+        """
+        # Ignore manual update requests if the entity is disabled
+        if not self.enabled:
             return
-        interval = int(selected_interval)
 
-        time_delta = (datetime.now() - self._media_timestamp).total_seconds()
-        if time_delta > interval:
-            await self.next_media()
+        await self.coordinator.async_request_refresh()
 
-    def _get_config_option(self, prop, default) -> ConfigEntry:
-        """Get config option."""
-        config = self.hass.config_entries.async_get_entry(
-            self._auth.oauth_session.config_entry.entry_id
-        )
-        if config.options is not None and prop in config.options:
-            return config.options[prop]
-        return default
+    @property
+    def should_poll(self) -> bool:
+        """No need to poll. Coordinator notifies entity of updates."""
+        return False
 
-    def _set_media(self, media: MediaItem) -> None:
-        """Set next media."""
-        self._set_media_id(media["id"])
-        self._media_item = media
-        write_metadata = self._get_config_option(
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return self.coordinator.last_update_success
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        write_metadata = self.coordinator.get_config_option(
             CONF_WRITEMETADATA, WRITEMETADATA_DEFAULT_OPTION
         )
+        media = self.coordinator.current_media
         if write_metadata:
             self._attr_extra_state_attributes["media_filename"] = (
                 media.get("filename") or ""
@@ -250,36 +151,21 @@ class GooglePhotosBaseCamera(Camera):
             self._attr_extra_state_attributes["media_contributor_info"] = (
                 media.get("contributorInfo") or {}
             )
+            self.async_write_ha_state()
 
-    def _set_media_id(self, media_id) -> None:
-        """Set next media id."""
-        self._media_id = media_id
-        self._media_cache = {}
+    def next_media(self, mode=None):
+        """Load the next media."""
+        self.coordinator.select_next(mode)
 
-    def _get_album_media(self, service: PhotosLibraryService) -> List[MediaItem] | None:
-        if self._album_cache is not None:
-            cache_delta = (datetime.now() - self._album_timestamp).total_seconds()
-            if cache_delta < THIRTY_MINUTES:
-                return self._album_cache
-
-        media_list = self._get_album_media_list(service)
-        if media_list is None:
+    async def async_camera_image(
+        self, width: int | None = None, height: int | None = None
+    ) -> bytes | None:
+        """Return a still image response from the camera."""
+        self.coordinator.refresh_current_image()
+        if self.coordinator.current_media is None:
+            _LOGGER.warning("No media selected for %s", self.name)
             return None
-
-        # No support for video at the moment
-        def is_photo(media: MediaItem) -> bool:
-            return (media.get("mediaMetadata") or {}).get("photo") is not None
-
-        media_list = list(filter(is_photo, media_list))
-
-        self._album_cache = media_list
-        self._album_timestamp = datetime.now()
-        return media_list
-
-    def _get_album_media_list(
-        self, service: PhotosLibraryService
-    ) -> List[MediaItem] | None:
-        raise NotImplementedError("To be implemented by subclass")
+        return await self.coordinator.get_media_data(width, height)
 
 
 class GooglePhotosAlbumCamera(GooglePhotosBaseCamera):
@@ -287,56 +173,24 @@ class GooglePhotosAlbumCamera(GooglePhotosBaseCamera):
 
     album: Album
 
-    def __init__(
-        self,
-        auth: AsyncConfigEntryAuth,
-        album: Album,
-        description: EntityDescription,
-    ) -> None:
+    def __init__(self, entry_id: str, coordinator: Coordinator, album: Album) -> None:
         """Initialize a Google Photos album."""
-        super().__init__(auth, description)
+        super().__init__(coordinator, dict(albumId=album["id"]))
         self.album = album
         self._attr_name = album["title"]
         self._attr_unique_id = album["id"]
-        self._set_media_id(album["coverPhotoMediaItemId"])
         self._attr_device_info = DeviceInfo(
-            identifiers={
-                (DOMAIN, auth.oauth_session.config_entry.entry_id, album["id"])
-            },
+            identifiers={(DOMAIN, entry_id, album["id"])},
             manufacturer=MANUFACTURER,
             name="Google Photos - " + album["title"],
             configuration_url=album["productUrl"],
         )
 
-    def _get_album_media_list(
-        self, service: PhotosLibraryService
-    ) -> List[MediaItem] | None:
-        album_id = self.album["id"]
-
-        result = (
-            service.mediaItems()
-            .search(body=dict(pageSize=100, albumId=album_id))
-            .execute()
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        await self.coordinator.set_current_media_with_id(
+            self.album["coverPhotoMediaItemId"]
         )
-        if not "mediaItems" in result:
-            return None
-
-        media_list = result["mediaItems"]
-        while "nextPageToken" in result and result["nextPageToken"] != "":
-            result = (
-                service.mediaItems()
-                .search(
-                    body=dict(
-                        pageSize=100,
-                        albumId=album_id,
-                        pageToken=result["nextPageToken"],
-                    )
-                )
-                .execute()
-            )
-            media_list = media_list + result["mediaItems"]
-
-        return media_list
 
 
 class GooglePhotosFavoritesCamera(GooglePhotosBaseCamera):
@@ -344,18 +198,19 @@ class GooglePhotosFavoritesCamera(GooglePhotosBaseCamera):
 
     def __init__(
         self,
-        auth: AsyncConfigEntryAuth,
-        description: EntityDescription,
+        entry_id: str,
+        coordinator: Coordinator,
     ) -> None:
         """Initialize a Google Photos album."""
-        super().__init__(auth, description)
+        filters = {"featureFilter": {"includedFeatures": ["FAVORITES"]}}
+        super().__init__(coordinator, dict(filters=filters))
         self._attr_name = "Favorites"
         self._attr_unique_id = "library_favorites"
         self._attr_device_info = DeviceInfo(
             identifiers={
                 (
                     DOMAIN,
-                    auth.oauth_session.config_entry.entry_id,
+                    entry_id,
                     CONF_ALBUM_ID_FAVORITES,
                 )
             },
@@ -364,33 +219,5 @@ class GooglePhotosFavoritesCamera(GooglePhotosBaseCamera):
         )
 
     async def async_added_to_hass(self) -> None:
-        await self.next_media()
-
-    def _get_album_media_list(
-        self, service: PhotosLibraryService
-    ) -> List[MediaItem] | None:
-        filters = {"featureFilter": {"includedFeatures": ["FAVORITES"]}}
-        result = (
-            service.mediaItems()
-            .search(body=dict(pageSize=100, filters=filters))
-            .execute()
-        )
-        if not "mediaItems" in result:
-            return None
-
-        media_list = result["mediaItems"]
-        while "nextPageToken" in result and result["nextPageToken"] != "":
-            result = (
-                service.mediaItems()
-                .search(
-                    body=dict(
-                        pageSize=100,
-                        filters=filters,
-                        pageToken=result["nextPageToken"],
-                    )
-                )
-                .execute()
-            )
-            media_list = media_list + result["mediaItems"]
-
-        return media_list
+        await super().async_added_to_hass()
+        self.next_media()

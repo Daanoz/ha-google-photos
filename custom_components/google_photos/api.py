@@ -1,4 +1,5 @@
 """API for Google Photos bound to Home Assistant OAuth."""
+from typing import cast
 from aiohttp import ClientSession
 from google.auth.exceptions import RefreshError
 from google.oauth2.credentials import Credentials
@@ -46,12 +47,15 @@ class AsyncConfigEntryAuth(OAuthClientAuthHandler):
             raise ex
 
         def get_photoslibrary() -> PhotosLibraryService:
-            return build(
-                "photoslibrary",
-                "v1",
-                credentials=credentials,
-                cache=self.discovery_cache,
-                static_discovery=False,
+            return cast(
+                build(
+                    "photoslibrary",
+                    "v1",
+                    credentials=credentials,
+                    cache=self.discovery_cache,
+                    static_discovery=False,
+                ),
+                PhotosLibraryService,
             )
 
         return await hass.async_add_executor_job(get_photoslibrary)

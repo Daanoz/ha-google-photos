@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import logging
-from typing import Any, List
+from typing import Any, List, cast
 import voluptuous as vol
 
 from google.oauth2.credentials import Credentials
@@ -124,11 +124,14 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         credentials = Credentials(self.config_entry.data[CONF_TOKEN][CONF_ACCESS_TOKEN])
 
         def get_photoslibrary() -> PhotosLibraryService:
-            return build(
-                "photoslibrary",
-                "v1",
-                credentials=credentials,
-                static_discovery=False,
+            return cast(
+                build(
+                    "photoslibrary",
+                    "v1",
+                    credentials=credentials,
+                    static_discovery=False,
+                ),
+                PhotosLibraryService,
             )
 
         def get_albums() -> List[Album]:

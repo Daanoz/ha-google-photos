@@ -124,23 +124,24 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         credentials = Credentials(self.config_entry.data[CONF_TOKEN][CONF_ACCESS_TOKEN])
 
         def get_photoslibrary() -> PhotosLibraryService:
-            return cast(
-                build(
-                    "photoslibrary",
-                    "v1",
-                    credentials=credentials,
-                    static_discovery=False,
-                ),
-                PhotosLibraryService,
+            return build(
+                "photoslibrary",
+                "v1",
+                credentials=credentials,
+                static_discovery=False,
             )
 
         def get_albums() -> List[Album]:
             service: PhotosLibraryService = get_photoslibrary()
-            result = service.albums().list(pageSize=50).execute()
+            result = (
+                service.albums()  # pylint: disable=no-member
+                .list(pageSize=50)
+                .execute()
+            )
             album_list = result["albums"]
             while "nextPageToken" in result and result["nextPageToken"] != "":
                 result = (
-                    service.albums()
+                    service.albums()  # pylint: disable=no-member
                     .list(pageSize=50, pageToken=result["nextPageToken"])
                     .execute()
                 )

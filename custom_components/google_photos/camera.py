@@ -1,6 +1,5 @@
 """Support for Google Photos Albums."""
 from __future__ import annotations
-from typing import List
 import logging
 
 import voluptuous as vol
@@ -12,21 +11,16 @@ from homeassistant.components.camera import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_platform
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .api import AsyncConfigEntryAuth
-from .api_types import Album
 from .const import (
     DOMAIN,
-    MANUFACTURER,
     MODE_OPTIONS,
     CONF_WRITEMETADATA,
     WRITEMETADATA_DEFAULT_OPTION,
     CONF_ALBUM_ID,
-    CONF_ALBUM_ID_FAVORITES,
 )
-from .coordinator import Coordinator
+from .coordinator import Coordinator, CoordinatorManager
 
 SERVICE_NEXT_MEDIA = "next_media"
 ATTR_MODE = "mode"
@@ -43,29 +37,14 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     """Set up the Google Photos camera."""
-    auth: AsyncConfigEntryAuth = hass.data[DOMAIN][entry.entry_id]
-    service = await auth.get_resource(hass)
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    coordinator_manager: CoordinatorManager = entry_data.get("coordinator_manager")
+
     album_ids = entry.options[CONF_ALBUM_ID]
-
-    def _get_albums() -> List[GooglePhotosBaseCamera]:
-        album_list = []
-        for album_id in album_ids:
-            coordinator = Coordinator(hass, auth, entry)
-            if album_id == CONF_ALBUM_ID_FAVORITES:
-                album_list.append(
-                    GooglePhotosFavoritesCamera(entry.entry_id, coordinator)
-                )
-            else:
-                album = service.albums().get(albumId=album_id).execute()
-                album_list.append(
-                    GooglePhotosAlbumCamera(entry.entry_id, coordinator, album)
-                )
-        return album_list
-
-    entities = await hass.async_add_executor_job(_get_albums)
-
-    for entity in entities:
-        await entity.coordinator.async_config_entry_first_refresh()
+    entities = []
+    for album_id in album_ids:
+        coordinator = await coordinator_manager.get_coordinator(album_id)
+        entities.append(GooglePhotosAlbumCamera(coordinator))
 
     platform = entity_platform.async_get_current_platform()
     platform.async_register_entity_service(
@@ -84,18 +63,13 @@ class GooglePhotosBaseCamera(Camera):
     """Base class Google Photos Camera class. Implements methods from CoordinatorEntity"""
 
     coordinator: Coordinator
-    coordinator_contxt: dict[str, str | int]
     _attr_has_entity_name = True
     _attr_icon = "mdi:image"
 
-    def __init__(
-        self, coordinator: Coordinator, album_context: dict[str, str | int]
-    ) -> None:
+    def __init__(self, coordinator: Coordinator) -> None:
         """Initialize a Google Photos Base Camera class."""
         super().__init__()
-        coordinator.set_context(album_context)
         self.coordinator = coordinator
-        self.coordinator_context = album_context
         self.entity_description = CAMERA_TYPE
         self._attr_native_value = "Cover photo"
         self._attr_frame_interval = 10
@@ -108,9 +82,7 @@ class GooglePhotosBaseCamera(Camera):
         """When entity is added to hass."""
         await super().async_added_to_hass()
         self.async_on_remove(
-            self.coordinator.async_add_listener(
-                self._handle_coordinator_update, self.coordinator_context
-            )
+            self.coordinator.async_add_listener(self._handle_coordinator_update)
         )
 
     async def async_update(self) -> None:
@@ -171,53 +143,19 @@ class GooglePhotosBaseCamera(Camera):
 class GooglePhotosAlbumCamera(GooglePhotosBaseCamera):
     """Representation of a Google Photos Album camera."""
 
-    album: Album
-
-    def __init__(self, entry_id: str, coordinator: Coordinator, album: Album) -> None:
+    def __init__(self, coordinator: Coordinator) -> None:
         """Initialize a Google Photos album."""
-        super().__init__(coordinator, dict(albumId=album["id"]))
-        self.album = album
-        self._attr_name = album["title"]
-        self._attr_unique_id = album["id"]
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry_id, album["id"])},
-            manufacturer=MANUFACTURER,
-            name="Google Photos - " + album["title"],
-            configuration_url=album["productUrl"],
-        )
+        super().__init__(coordinator)
+        self._attr_name = "Media"
+        album_id = self.coordinator.album["id"]
+        self._attr_unique_id = f"{album_id}-media"
+        self._attr_device_info = self.coordinator.get_device_info()
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        await self.coordinator.set_current_media_with_id(
-            self.album["coverPhotoMediaItemId"]
-        )
-
-
-class GooglePhotosFavoritesCamera(GooglePhotosBaseCamera):
-    """Representation of a Google Photos Favorites camera."""
-
-    def __init__(
-        self,
-        entry_id: str,
-        coordinator: Coordinator,
-    ) -> None:
-        """Initialize a Google Photos album."""
-        filters = {"featureFilter": {"includedFeatures": ["FAVORITES"]}}
-        super().__init__(coordinator, dict(filters=filters))
-        self._attr_name = "Favorites"
-        self._attr_unique_id = "library_favorites"
-        self._attr_device_info = DeviceInfo(
-            identifiers={
-                (
-                    DOMAIN,
-                    entry_id,
-                    CONF_ALBUM_ID_FAVORITES,
-                )
-            },
-            manufacturer=MANUFACTURER,
-            name="Google Photos - Favorites",
-        )
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        self.next_media()
+        if self.coordinator.album.get("coverPhotoMediaItemId") is None:
+            self.next_media()
+        else:
+            await self.coordinator.set_current_media_with_id(
+                self.coordinator.album.get("coverPhotoMediaItemId")
+            )

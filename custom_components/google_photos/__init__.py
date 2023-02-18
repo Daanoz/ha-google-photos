@@ -15,10 +15,12 @@ from homeassistant.helpers.config_entry_oauth2_flow import (
     async_get_config_entry_implementation,
 )
 
-from .api import AsyncConfigEntryAuth
-from .const import DATA_AUTH, DOMAIN
+from custom_components.google_photos.coordinator import Coordinator, CoordinatorManager
 
-PLATFORMS = [Platform.CAMERA]
+from .api import AsyncConfigEntryAuth
+from .const import DOMAIN
+
+PLATFORMS = [Platform.CAMERA, Platform.SENSOR]
 
 
 async def async_migrate_entry(hass, config_entry: ConfigEntry):
@@ -50,7 +52,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         raise ConfigEntryNotReady from err
     except ClientError as err:
         raise ConfigEntryNotReady from err
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = auth
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = dict(
+        {"auth": auth, "coordinator_manager": CoordinatorManager(hass, entry, auth)}
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(update_listener))

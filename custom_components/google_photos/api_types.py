@@ -70,8 +70,8 @@ class Album(TypedDict):
 
     id: str
     title: str
-    productUrl: str
+    productUrl: str | None
     isWriteable: bool
-    mediaItemsCount: str
-    coverPhotoBaseUrl: str
-    coverPhotoMediaItemId: str
+    mediaItemsCount: str | None
+    coverPhotoBaseUrl: str | None
+    coverPhotoMediaItemId: str | None

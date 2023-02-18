@@ -16,14 +16,17 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.helpers.aiohttp_client import (
     async_get_clientsession,
 )
+from homeassistant.helpers.entity import DeviceInfo
 from .api import AsyncConfigEntryAuth
-from .api_types import MediaItem
+from .api_types import Album, MediaItem
 from .const import (
+    CONF_ALBUM_ID_FAVORITES,
     CONF_INTERVAL,
     CONF_MODE,
     DOMAIN,
     INTERVAL_DEFAULT_OPTION,
     INTERVAL_OPTION_NONE,
+    MANUFACTURER,
     MODE_DEFAULT_OPTION,
     MODE_OPTION_ALBUM_ORDER,
 )
@@ -32,26 +35,67 @@ _LOGGER = logging.getLogger(__name__)
 FIFTY_MINUTES = 60 * 50
 
 
+class CoordinatorManager:
+    """Manages all coordinators used by integration (one per album)"""
+
+    hass: HomeAssistant
+    _config: ConfigEntry
+    _auth: AsyncConfigEntryAuth
+    coordinators: dict[str, Coordinator] = dict()
+    coordinator_first_refresh: dict[str, asyncio.Task] = dict()
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        config: ConfigEntry,
+        auth: AsyncConfigEntryAuth,
+    ) -> None:
+        self.hass = hass
+        self._config = config
+        self._auth = auth
+
+    async def get_coordinator(self, album_id: str) -> Coordinator:
+        """Get a unique coordinator for specific album_id"""
+        if album_id in self.coordinators:
+            await self.coordinator_first_refresh.get(album_id)
+            return self.coordinators.get(album_id)
+        self.coordinators[album_id] = Coordinator(
+            self.hass, self._auth, self._config, album_id
+        )
+        first_refresh = asyncio.create_task(
+            self.coordinators[album_id].async_config_entry_first_refresh()
+        )
+        self.coordinator_first_refresh[album_id] = first_refresh
+        await first_refresh
+        return self.coordinators[album_id]
+
+
 class Coordinator(DataUpdateCoordinator):
     """Coordinates data retrieval and selection from Google Photos"""
 
     _auth: AsyncConfigEntryAuth
     _config: ConfigEntry
     _context: dict[str, str | int] = dict()
+    album: Album = None
+    album_id: str
     album_list: List[MediaItem] = []
     current_media: MediaItem | None = None
 
     current_media_cache: Dict[str, bytes] = {}
 
     # Timestamop when these items where loaded
-    album_list_timestamp: datetime | None = None
+    album_list_timestamp = datetime.fromtimestamp(0)
     # Media selection timestamp, when was this image selected to be shown, used to calculate when to move to the next one
-    current_media_selected_timestamp = datetime.now()
+    current_media_selected_timestamp = datetime.fromtimestamp(0)
     # Age of the media object, because the data links are only valid for 60 mins,this is used to check if a new instance needs to be retrieved
-    current_media_data_timestamp = datetime.now()
+    current_media_data_timestamp = datetime.fromtimestamp(0)
 
     def __init__(
-        self, hass: HomeAssistant, auth: AsyncConfigEntryAuth, config: ConfigEntry
+        self,
+        hass: HomeAssistant,
+        auth: AsyncConfigEntryAuth,
+        config: ConfigEntry,
+        album_id: str,
     ) -> None:
         super().__init__(
             hass,
@@ -63,6 +107,29 @@ class Coordinator(DataUpdateCoordinator):
         )
         self._auth = auth
         self._config = config
+        self.album_id = album_id
+
+        if self.album_id == CONF_ALBUM_ID_FAVORITES:
+            filters = {"featureFilter": {"includedFeatures": ["FAVORITES"]}}
+            self.set_context(dict(filters=filters))
+            self.album = Album(id=self.album_id, title="Favorites", isWriteable=False)
+        else:
+            self.set_context(dict(albumId=self.album_id))
+
+    def get_device_info(self) -> DeviceInfo:
+        """Fetches device info for coordinator instance"""
+        return DeviceInfo(
+            identifiers={
+                (
+                    DOMAIN,
+                    self._config.entry_id,
+                    self.album_id,
+                )
+            },
+            manufacturer=MANUFACTURER,
+            name="Google Photos - " + self.album.get("title"),
+            configuration_url=self.album.get("productUrl"),
+        )
 
     def set_context(self, context: dict[str, str | int]):
         """Set coordinator context"""
@@ -100,8 +167,12 @@ class Coordinator(DataUpdateCoordinator):
         """Sets current selected media using only the id"""
         try:
             service = await self._auth.get_resource(self.hass)
+
+            def _get_media_item() -> MediaItem:
+                return service.mediaItems().get(mediaItemId=media_id).execute()
+
             self.set_current_media(
-                service.mediaItems().get(mediaItemId=media_id).execute()
+                await self.hass.async_add_executor_job(_get_media_item)
             )
         except aiohttp.ClientError as err:
             _LOGGER.error("Error getting image from %s: %s", self._context, err)
@@ -232,17 +303,26 @@ class Coordinator(DataUpdateCoordinator):
             _LOGGER.error("Error getting media lise from %s: %s", self._context, err)
 
     async def _refresh_album_list(self) -> bool:
-        if self.album_list_timestamp is not None:
-            cache_delta = (datetime.now() - self.album_list_timestamp).total_seconds()
-            if cache_delta < FIFTY_MINUTES:
-                return False
+        cache_delta = (datetime.now() - self.album_list_timestamp).total_seconds()
+        if cache_delta < FIFTY_MINUTES:
+            return False
         await self._get_album_list()
         return True
 
     async def _async_update_data(self):
         """Fetch album data"""
+
         try:
             async with async_timeout.timeout(30):
+                if self.album is None:
+                    service = await self._auth.get_resource(self.hass)
+
+                    def _get_album(album_id: str) -> Album:
+                        return service.albums().get(albumId=album_id).execute()
+
+                    self.album = await self.hass.async_add_executor_job(
+                        _get_album, self.album_id
+                    )
                 await self.update_data()
         except Exception as err:
             raise UpdateFailed(f"Error communicating with API: {err}") from err

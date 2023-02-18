@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import logging
-from typing import Any, List, cast
+from typing import Any, List
 import voluptuous as vol
 
 from google.oauth2.credentials import Credentials

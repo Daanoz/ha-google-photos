@@ -108,10 +108,11 @@ data:
 
 ## Notes / Remarks / Limitations
 
-- Currently the album media is cached for 30 minutes.
+- Currently the album media list is cached for 50 minutes.
 
 ## Future plans
 
+- Reduce start-up time integration (currently loads entire album which can be slow)
 - Support for videos
 - Support loading media using [content categories](https://developers.google.com/photos/library/guides/apply-filters#content-categories)
 - Support loading media filtered by date/time

@@ -1,3 +1,4 @@
+"""Coordinators to fetch data for all entities"""
 from __future__ import annotations
 import asyncio
 from datetime import datetime
@@ -21,14 +22,14 @@ from .api import AsyncConfigEntryAuth
 from .api_types import Album, MediaItem
 from .const import (
     CONF_ALBUM_ID_FAVORITES,
-    CONF_INTERVAL,
-    CONF_MODE,
     DOMAIN,
-    INTERVAL_DEFAULT_OPTION,
-    INTERVAL_OPTION_NONE,
     MANUFACTURER,
-    MODE_DEFAULT_OPTION,
-    MODE_OPTION_ALBUM_ORDER,
+    SETTING_CROP_MODE_CROP,
+    SETTING_CROP_MODE_DEFAULT_OPTION,
+    SETTING_IMAGESELECTION_MODE_ALBUM_ORDER,
+    SETTING_IMAGESELECTION_MODE_DEFAULT_OPTION,
+    SETTING_INTERVAL_DEFAULT_OPTION,
+    SETTING_INTERVAL_MAP,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -85,10 +86,16 @@ class Coordinator(DataUpdateCoordinator):
 
     # Timestamop when these items where loaded
     album_list_timestamp = datetime.fromtimestamp(0)
-    # Media selection timestamp, when was this image selected to be shown, used to calculate when to move to the next one
+    # Media selection timestamp, when was this image selected to be shown,
+    # used to calculate when to move to the next one
     current_media_selected_timestamp = datetime.fromtimestamp(0)
-    # Age of the media object, because the data links are only valid for 60 mins,this is used to check if a new instance needs to be retrieved
+    # Age of the media object, because the data links are only valid for 60 mins,
+    # this is used to check if a new instance needs to be retrieved
     current_media_data_timestamp = datetime.fromtimestamp(0)
+
+    crop_mode = SETTING_CROP_MODE_DEFAULT_OPTION
+    image_selection_mode = SETTING_IMAGESELECTION_MODE_DEFAULT_OPTION
+    interval = SETTING_INTERVAL_DEFAULT_OPTION
 
     def __init__(
         self,
@@ -134,6 +141,18 @@ class Coordinator(DataUpdateCoordinator):
     def set_context(self, context: dict[str, str | int]):
         """Set coordinator context"""
         self._context = context
+
+    def set_crop_mode(self, crop_mode: str):
+        """Set crop mode"""
+        self.crop_mode = crop_mode
+
+    def set_image_selection_mode(self, image_selection_mode: str):
+        """Set image selection mode"""
+        self.image_selection_mode = image_selection_mode
+
+    def set_interval(self, interval: str):
+        """Set interval"""
+        self.interval = interval
 
     def get_config_option(self, prop, default) -> ConfigEntry:
         """Get config option."""
@@ -188,12 +207,9 @@ class Coordinator(DataUpdateCoordinator):
     def refresh_current_image(self) -> bool:
         """Selects next image if interval has passed"""
         self.hass.async_add_job(self._refresh_album_list)
-        selected_interval = self.get_config_option(
-            CONF_INTERVAL, INTERVAL_DEFAULT_OPTION
-        )
-        if selected_interval == INTERVAL_OPTION_NONE:
+        interval = SETTING_INTERVAL_MAP.get(self.interval)
+        if interval is None:
             return False
-        interval = int(selected_interval)
 
         time_delta = (
             datetime.now() - self.current_media_selected_timestamp
@@ -205,8 +221,8 @@ class Coordinator(DataUpdateCoordinator):
 
     def select_next(self, mode=None):
         """Select next media based on config"""
-        mode = mode or self.get_config_option(CONF_MODE, MODE_DEFAULT_OPTION)
-        if mode == MODE_OPTION_ALBUM_ORDER:
+        mode = mode or self.image_selection_mode
+        if mode.lower() == SETTING_IMAGESELECTION_MODE_ALBUM_ORDER.lower():
             self.select_sequential_media()
         else:
             self.select_random_media()
@@ -235,6 +251,8 @@ class Coordinator(DataUpdateCoordinator):
     async def get_media_data(self, width: int | None = None, height: int | None = None):
         """Get a binary image data for the current media"""
         size_str = "=w" + str(width or 1024) + "-h" + str(height or 512)
+        if self.crop_mode is SETTING_CROP_MODE_CROP:
+            size_str += "-c"
         if size_str in self.current_media_cache:
             return self.current_media_cache[size_str]
 

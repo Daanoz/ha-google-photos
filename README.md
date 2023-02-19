@@ -15,9 +15,18 @@ This integration allows you to add albums from your Google Photos account as a `
 
 **This component will set up the following platforms.**
 
-Platform | Description
--- | --
-`camera` | Google Photos Album
+For each selected album:
+
+Platform | Name | Description
+-- | --  | --
+`camera` | `media` | An image from the Google Photos Album
+`sensor` | `filename` | Filename of the currently selected media item
+`sensor` | `creation_timestamp` | Timestamp of the currently selected media item
+`sensor` | `media_count` | Counter showing the number of media items in the album (photo + video)
+`select` | `image_selection_mode` | Configuration setting on how to pick the next image
+`select` | `crop_mode` | Configuration setting on how to crop the image
+`select` | `update_interval` | Configuration setting on how often to update the image, if you have a lot of albums running on your instance it is adviseable to not set this to low.
+
 
 ![example][exampleimg]
 

@@ -8,24 +8,23 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_NAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers import discovery
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.config_entry_oauth2_flow import (
     OAuth2Session,
     async_get_config_entry_implementation,
 )
 
-from custom_components.google_photos.coordinator import Coordinator, CoordinatorManager
+from custom_components.google_photos.coordinator import CoordinatorManager
 
 from .api import AsyncConfigEntryAuth
 from .const import DOMAIN
 
-PLATFORMS = [Platform.CAMERA, Platform.SENSOR]
+PLATFORMS = [Platform.CAMERA, Platform.SENSOR, Platform.SELECT]
+_LOGGER = logging.getLogger(__name__)
 
 
-async def async_migrate_entry(hass, config_entry: ConfigEntry):
+async def async_migrate_entry(_, config_entry: ConfigEntry):
     """Migrate old entry."""
-    _LOGGER = logging.getLogger(__name__)
     _LOGGER.debug("Migrating from version %s", config_entry.version)
 
     if config_entry.version == 1:

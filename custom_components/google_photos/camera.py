@@ -15,8 +15,8 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     DOMAIN,
-    MODE_OPTIONS,
     CONF_WRITEMETADATA,
+    SETTING_IMAGESELECTION_MODE_OPTIONS,
     WRITEMETADATA_DEFAULT_OPTION,
     CONF_ALBUM_ID,
 )
@@ -24,7 +24,9 @@ from .coordinator import Coordinator, CoordinatorManager
 
 SERVICE_NEXT_MEDIA = "next_media"
 ATTR_MODE = "mode"
-CAMERA_NEXT_MEDIA_SCHEMA = {vol.Optional(ATTR_MODE): vol.In(MODE_OPTIONS)}
+CAMERA_NEXT_MEDIA_SCHEMA = {
+    vol.Optional(ATTR_MODE): vol.In(SETTING_IMAGESELECTION_MODE_OPTIONS)
+}
 
 CAMERA_TYPE = CameraEntityDescription(
     key="album_image", name="Album image", icon="mdi:image"

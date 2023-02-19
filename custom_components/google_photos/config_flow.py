@@ -20,12 +20,6 @@ from .api_types import PhotosLibraryService, Album
 from .const import (
     DEFAULT_ACCESS,
     DOMAIN,
-    CONF_MODE,
-    MODE_OPTIONS,
-    MODE_DEFAULT_OPTION,
-    CONF_INTERVAL,
-    INTERVAL_OPTIONS,
-    INTERVAL_DEFAULT_OPTION,
     CONF_WRITEMETADATA,
     WRITEMETADATA_DEFAULT_OPTION,
     CONF_ALBUM_ID,
@@ -199,18 +193,6 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         data_schema = vol.Schema(
             {
-                vol.Optional(
-                    CONF_MODE,
-                    default=self.config_entry.options.get(
-                        CONF_MODE, MODE_DEFAULT_OPTION
-                    ),
-                ): vol.In(MODE_OPTIONS),
-                vol.Optional(
-                    CONF_INTERVAL,
-                    default=self.config_entry.options.get(
-                        CONF_INTERVAL, INTERVAL_DEFAULT_OPTION
-                    ),
-                ): vol.In(INTERVAL_OPTIONS),
                 vol.Optional(
                     CONF_WRITEMETADATA,
                     default=self.config_entry.options.get(

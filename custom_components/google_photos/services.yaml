@@ -10,10 +10,10 @@ next_media:
       name: Mode
       description: Selection of next media
       required: false
-      example: "RANDOM"
-      default: "RANDOM"
+      example: "Random"
+      default: "Random"
       selector:
         select:
           options:
-            - "RANDOM"
-            - "ALBUM_ORDER"
+            - "Random"
+            - "Album order"

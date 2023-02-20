@@ -106,14 +106,14 @@ It is possible to control the album using the service exposed by `google_photos`
 service: google_photos.next_media
 data:
   entity_id: camera.google_photos_library_favorites
-  mode: RANDOM
+  mode: Random
 ```
 
 #### Key Descriptions
 | Key | Required | Default | Description |
 | --- | --- | --- | --- |
 | entity_id | Yes | | Entity name of a Google Photo album camera. |
-| mode | No | `RANDOM` | Selection mode next image, either `RANDOM` or `ALBUM_ORDER` |
+| mode | No | `Random` | Selection mode next image, either `Random` or `Album order` |
 
 ## Notes / Remarks / Limitations
 

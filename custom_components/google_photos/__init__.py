@@ -7,6 +7,7 @@ from aiohttp.client_exceptions import ClientError, ClientResponseError
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_NAME, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.config_entry_oauth2_flow import (
@@ -17,7 +18,7 @@ from homeassistant.helpers.config_entry_oauth2_flow import (
 from custom_components.google_photos.coordinator import CoordinatorManager
 
 from .api import AsyncConfigEntryAuth
-from .const import DOMAIN
+from .const import CONF_ALBUM_ID, DOMAIN
 
 PLATFORMS = [Platform.CAMERA, Platform.SENSOR, Platform.SELECT]
 _LOGGER = logging.getLogger(__name__)
@@ -86,3 +87,25 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload config entry."""
     await async_unload_entry(hass, entry)
     await async_setup_entry(hass, entry)
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, config_entry: ConfigEntry, device_entry: DeviceEntry
+) -> bool:
+    """Remove a config entry from a device."""
+    identifier = next((id for id in device_entry.identifiers if id[0] == DOMAIN), None)
+    if identifier is None:
+        return False
+    album_id = identifier[len(identifier) - 1]
+    options = config_entry.options.copy()
+    albums = options.get(CONF_ALBUM_ID, []).copy()
+    if album_id in albums:
+        albums.remove(album_id)
+        options.update({CONF_ALBUM_ID: albums})
+        hass.config_entries.async_update_entry(config_entry, options=options)
+
+    coordinator_manager: CoordinatorManager = hass.data.get(DOMAIN)[
+        config_entry.entry_id
+    ].get("coordinator_manager")
+    coordinator_manager.remove_coordinator(album_id)
+    return True

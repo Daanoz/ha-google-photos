@@ -70,6 +70,13 @@ class CoordinatorManager:
         await first_refresh
         return self.coordinators[album_id]
 
+    def remove_coordinator(self, album_id: str):
+        """Remove coordinator instance"""
+        if album_id not in self.coordinators:
+            return
+        self.coordinators.pop(album_id)
+        self.coordinator_first_refresh.pop(album_id)
+
 
 class Coordinator(DataUpdateCoordinator):
     """Coordinates data retrieval and selection from Google Photos"""

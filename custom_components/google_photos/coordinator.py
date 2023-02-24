@@ -4,8 +4,9 @@ import asyncio
 from datetime import datetime
 
 import logging
+import math
 import random
-from typing import Dict, List
+from typing import Dict, List, Tuple
 import aiohttp
 import async_timeout
 from homeassistant.core import HomeAssistant
@@ -18,12 +19,17 @@ from homeassistant.helpers.aiohttp_client import (
     async_get_clientsession,
 )
 from homeassistant.helpers.entity import DeviceInfo
+
+from PIL import Image
+import io
+
 from .api import AsyncConfigEntryAuth
-from .api_types import Album, MediaItem
+from .api_types import Album, MediaItem, PhotosLibraryService
 from .const import (
     CONF_ALBUM_ID_FAVORITES,
     DOMAIN,
     MANUFACTURER,
+    SETTING_CROP_MODE_COMBINED,
     SETTING_CROP_MODE_CROP,
     SETTING_CROP_MODE_DEFAULT_OPTION,
     SETTING_IMAGESELECTION_MODE_ALBUM_ORDER,
@@ -87,7 +93,8 @@ class Coordinator(DataUpdateCoordinator):
     album: Album = None
     album_id: str
     album_list: List[MediaItem] = []
-    current_media: MediaItem | None = None
+    current_media_primary: MediaDownloader | None = None
+    current_media_secondary: MediaDownloader | None = None
 
     current_media_cache: Dict[str, bytes] = {}
 
@@ -96,9 +103,6 @@ class Coordinator(DataUpdateCoordinator):
     # Media selection timestamp, when was this image selected to be shown,
     # used to calculate when to move to the next one
     current_media_selected_timestamp = datetime.fromtimestamp(0)
-    # Age of the media object, because the data links are only valid for 60 mins,
-    # this is used to check if a new instance needs to be retrieved
-    current_media_data_timestamp = datetime.fromtimestamp(0)
 
     crop_mode = SETTING_CROP_MODE_DEFAULT_OPTION
     image_selection_mode = SETTING_IMAGESELECTION_MODE_DEFAULT_OPTION
@@ -130,6 +134,12 @@ class Coordinator(DataUpdateCoordinator):
         else:
             self.set_context(dict(albumId=self.album_id))
 
+    @property
+    def current_media(self) -> MediaItem | None:
+        if self.current_media_primary is None:
+            return None
+        return self.current_media_primary.media
+
     def get_device_info(self) -> DeviceInfo:
         """Fetches device info for coordinator instance"""
         return DeviceInfo(
@@ -151,6 +161,7 @@ class Coordinator(DataUpdateCoordinator):
 
     def set_crop_mode(self, crop_mode: str):
         """Set crop mode"""
+        self.current_media_cache = {}
         self.crop_mode = crop_mode
 
     def set_image_selection_mode(self, image_selection_mode: str):
@@ -187,7 +198,10 @@ class Coordinator(DataUpdateCoordinator):
 
     def current_media_id(self) -> str | None:
         """Id of current media"""
-        return self.current_media.get("id")
+        media = self.current_media
+        if media is None:
+            return None
+        return media.get("id")
 
     async def set_current_media_with_id(self, media_id: str):
         """Sets current selected media using only the id"""
@@ -205,9 +219,11 @@ class Coordinator(DataUpdateCoordinator):
 
     def set_current_media(self, media: MediaItem):
         """Sets current selected media"""
-        self.current_media = media
+        self.current_media_primary = MediaDownloader(
+            self.hass, self._auth, media, self.album_list_timestamp
+        )
+        self.current_media_secondary = None
         self.current_media_cache = {}
-        self.current_media_data_timestamp = self.album_list_timestamp
         self.current_media_selected_timestamp = datetime.now()
         self.async_update_listeners()
 
@@ -257,50 +273,135 @@ class Coordinator(DataUpdateCoordinator):
 
     async def get_media_data(self, width: int | None = None, height: int | None = None):
         """Get a binary image data for the current media"""
-        size_str = "=w" + str(width or 1024) + "-h" + str(height or 512)
-        if self.crop_mode is SETTING_CROP_MODE_CROP:
+        width = width or 1024
+        height = height or 512
+
+        size_str = "=w" + str(width) + "-h" + str(height)
+        if self.crop_mode in [SETTING_CROP_MODE_CROP, SETTING_CROP_MODE_COMBINED]:
             size_str += "-c"
         if size_str in self.current_media_cache:
             return self.current_media_cache[size_str]
 
-        try:
-            service = await self._auth.get_resource(self.hass)
+        if self.crop_mode == SETTING_CROP_MODE_COMBINED:
+            result = await self._get_combined_media_data(width, height)
+            if result is not None:
+                self.current_media_cache[size_str] = result
+                return self.current_media_cache[size_str]
 
-            def _get_media_url() -> str:
-                media_item_age = (
-                    datetime.now() - self.current_media_data_timestamp
-                ).total_seconds()
-                if self.current_media is not None and media_item_age < FIFTY_MINUTES:
-                    return self.current_media.get("baseUrl")
-                self.current_media = (
-                    service.mediaItems()
-                    .get(mediaItemId=self.current_media_id())
-                    .execute()
+        self.current_media_cache[size_str] = await self.current_media_primary.download(
+            size_str
+        )
+        return self.current_media_cache[size_str]
+
+    async def _get_combined_media_data(self, width: int, height: int):
+        """Get a binary image data for the current media"""
+        requested_dimensions = (float(width), float(height))
+        media_dimensions = self._get_media_dimensions()
+        media_is_portrait = self._is_portrait(media_dimensions)
+        if self._is_portrait(requested_dimensions) is media_is_portrait:
+            # Requested orientation matches media orientation
+            return None
+
+        combined_image_dimensions = self._calculate_combined_image_dimensions(
+            requested_dimensions, media_dimensions
+        )
+        cut_loss_single = self._calculate_cut_loss(
+            requested_dimensions, media_dimensions
+        )
+        cut_loss_combined = self._calculate_cut_loss(
+            combined_image_dimensions, media_dimensions
+        )
+        if cut_loss_single < cut_loss_combined:
+            # Bigger part of the image would be lost with combined images
+            return None
+
+        if self.current_media_secondary is None:
+            similar_orientation_images = filter(
+                lambda m: (
+                    self._is_portrait(self._get_media_dimensions(m))
+                    is media_is_portrait
                 )
-                self.current_media_data_timestamp = datetime.now()
-                return self.current_media.get("baseUrl")
+                and (m.get("id") != self.current_media_id()),
+                self.photo_media_list(),
+            )
+            secondary_media = random.choice(list(similar_orientation_images))
+            if secondary_media is None:
+                return None
+            self.current_media_secondary = MediaDownloader(
+                self.hass, self._auth, secondary_media, self.album_list_timestamp
+            )
 
-            media_url = await self.hass.async_add_executor_job(_get_media_url)
-            _LOGGER.debug("Loading %s", media_url)
-            websession = async_get_clientsession(self.hass)
+        size_str = (
+            "=w"
+            + str(math.ceil(combined_image_dimensions[0]))
+            + "-h"
+            + str(math.ceil(combined_image_dimensions[1]))
+            + "-c"
+        )
+        images = await asyncio.gather(
+            self.current_media_primary.download(size_str),
+            self.current_media_secondary.download(size_str),
+        )
+        if images[0] is None or images[1] is None:
+            return None
 
-            async with async_timeout.timeout(10):
-                response = await websession.get(media_url + size_str)
-                image = await response.read()
-                self.current_media_cache[size_str] = image
-                return image
-
-        except asyncio.TimeoutError:
-            _LOGGER.error("Timeout getting image from %s", self._context)
-
-        except aiohttp.ClientError as err:
-            _LOGGER.error("Error getting new image from %s: %s", self._context, err)
-
-        return None
+        with Image.new("RGB", (width, height), "white") as output:
+            output.paste(Image.open(io.BytesIO(images[0])), (0, 0))
+            if combined_image_dimensions[0] < requested_dimensions[0]:
+                output.paste(
+                    Image.open(io.BytesIO(images[1])),
+                    (math.floor(combined_image_dimensions[0]), 0),
+                )
+            else:
+                output.paste(
+                    Image.open(io.BytesIO(images[1])),
+                    (0, math.floor(combined_image_dimensions[1])),
+                )
+            with io.BytesIO() as result:
+                output.save(result, "JPEG")
+                return result.getvalue()
 
     async def update_data(self):
         """Check if media list or current image needs to be refreshed"""
         await self._refresh_album_list()
+
+    def _is_portrait(self, dimensions: Tuple[float, float]) -> bool:
+        """Returns if the given dimension represent a portrait media item"""
+        return dimensions[0] < dimensions[1]
+
+    def _calculate_combined_image_dimensions(
+        self, target: Tuple[float, float], src: Tuple[float, float]
+    ) -> Tuple[float, float]:
+        multiplier_width = target[0] / src[0]
+        multiplier_height = target[1] / src[1]
+        if multiplier_height > multiplier_width:
+            return (target[0], target[1] / 2)
+        else:
+            return (target[0] / 2, target[1])
+
+    def _calculate_cut_loss(
+        self, target: Tuple[float, float], src: Tuple[float, float]
+    ) -> float:
+        multiplier = max(target[0] / src[0], target[1] / src[1])
+        return 1 - (
+            (target[0] * target[1]) / ((src[0] * multiplier) * (src[1] * multiplier))
+        )
+
+    def _get_media_dimensions(
+        self, media: MediaItem | None = None
+    ) -> Tuple[float, float] | None:
+        """Get the dimensions of the media item"""
+        media = media or self.current_media
+        if media is None:
+            return None
+        metadata = media.get("mediaMetadata")
+        if metadata is None:
+            return None
+        width = metadata.get("width")
+        height = metadata.get("height")
+        if width is None or height is None:
+            return None
+        return (float(width), float(height))
 
     async def _get_album_list(self):
         try:
@@ -351,3 +452,59 @@ class Coordinator(DataUpdateCoordinator):
                 await self.update_data()
         except Exception as err:
             raise UpdateFailed(f"Error communicating with API: {err}") from err
+
+
+class MediaDownloader:
+    """Utility class for downloading media"""
+
+    hass: HomeAssistant
+    auth: AsyncConfigEntryAuth
+    media: MediaItem
+    media_timestamp: datetime
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        auth: AsyncConfigEntryAuth,
+        media: MediaItem,
+        media_timestamp: datetime,
+    ) -> None:
+        self.hass = hass
+        self.auth = auth
+        self.media = media
+        self.media_timestamp = media_timestamp
+
+    async def download(self, size_str: str):
+        """Get a binary image data"""
+        try:
+            service = await self.auth.get_resource(self.hass)
+
+            media_url = await self.hass.async_add_executor_job(
+                self._get_media_url, service
+            )
+            _LOGGER.debug("Loading %s", media_url)
+            websession = async_get_clientsession(self.hass)
+
+            async with async_timeout.timeout(10):
+                response = await websession.get(media_url + size_str)
+                return await response.read()
+
+        except asyncio.TimeoutError:
+            _LOGGER.error("Timeout getting image: %s", self.media.get("id"))
+
+        except aiohttp.ClientError as err:
+            _LOGGER.error(
+                "Error getting new image from %s: %s", self.media.get("id"), err
+            )
+
+        return None
+
+    def _get_media_url(self, service: PhotosLibraryService) -> str:
+        media_item_age = (datetime.now() - self.media_timestamp).total_seconds()
+        if media_item_age < FIFTY_MINUTES:
+            return self.media.get("baseUrl")
+        self.media = (
+            service.mediaItems().get(mediaItemId=self.media.get("id")).execute()
+        )
+        self.media_timestamp = datetime.now()
+        return self.media.get("baseUrl")

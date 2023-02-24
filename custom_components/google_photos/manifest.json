@@ -1,15 +1,21 @@
 {
   "domain": "google_photos",
   "name": "Google Photos",
+  "codeowners": [
+    "@Daanoz"
+  ],
   "config_flow": true,
+  "dependencies": [
+    "application_credentials"
+  ],
   "documentation": "https://github.com/daanoz/ha-google-photos",
+  "loggers": [
+    "googleapiclient"
+  ],
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/daanoz/ha-google-photos/issues",
-  "dependencies": ["application_credentials"],
-  "requirements": ["google-api-python-client==2.71.0"],
-  "version": "v0.0.0",
-  "codeowners": [
-    "@daanoz"
+  "requirements": [
+    "google-api-python-client==2.71.0"
   ],
-  "loggers": ["googleapiclient"]
+  "version": "v0.0.0"
 }

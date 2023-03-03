@@ -19,14 +19,13 @@ For each selected album:
 
 Platform | Name | Description
 -- | --  | --
-`camera` | `media` | An image from the Google Photos Album
-`sensor` | `filename` | Filename of the currently selected media item
-`sensor` | `creation_timestamp` | Timestamp of the currently selected media item
-`sensor` | `media_count` | Counter showing the number of media items in the album (photo + video)
-`select` | `image_selection_mode` | Configuration setting on how to pick the next image
-`select` | `crop_mode` | Configuration setting on how to crop the image
+`camera` | `media` | An image from the Google Photos Album.
+`sensor` | `filename` | Filename of the currently selected media item.
+`sensor` | `creation_timestamp` | Timestamp of the currently selected media item.
+`sensor` | `media_count` | Counter showing the number of media items in the album (photo + video).
+`select` | `image_selection_mode` | Configuration setting on how to pick the next image.
+`select` | `crop_mode` | Configuration setting on how to crop the image, either `Original`, `Crop` or `Combine images` [(explanation)](#crop-modes).
 `select` | `update_interval` | Configuration setting on how often to update the image, if you have a lot of albums running on your instance it is adviseable to not set this to low.
-
 
 ![example][exampleimg]
 
@@ -74,6 +73,20 @@ Platform | Name | Description
 1. You may close the window, and return back to Home Assistant where you should see a Success! message from Home Assistant.
 
 After the setup is complete a device will be created with entity for your favorite photos. To add more albums from you account, click configure on the integration card.
+
+## Crop modes
+
+### Original
+
+Provides scaled down images that would fit in the requested view in the original aspect ratio. If your dashboard configuration does not specify the aspect ratio, the card size could change for every image.
+
+### Crop
+
+Crop image to fit into the requested view.
+
+### Combine images
+
+In combine images mode, the integration will combine two images of the same orientation if it calculates that showing two images side by side would lead to a lower loss in square pixels than cropping a single image. For example; two portrait images on a landscape view.
 
 ## Card setups
 

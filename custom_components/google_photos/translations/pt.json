@@ -1,0 +1,60 @@
+{
+    "application_credentials": {
+        "description": "Siga as [instructions]({more_info_url}) para [OAuth consent screen]({oauth_consent_url}) dar acesso ao Google Fotos. Vais precisar de criar Application Credentials ligada a tua conta:\n1. ir para [Credentials]({oauth_creds_url}) e clicar **Create Credentials**.\n1. Da lista dropdown **OAuth client ID**.\n1. Seleciona **Web application** pelo tipo de aplicação.\n\n"
+    },
+    "config": {
+        "abort": {
+            "already_configured": "Conta já se encontra configurada",
+            "already_in_progress": "Fluxo de configuração já iniciado",
+            "cannot_connect": "Falhou a ligação",
+            "invalid_access_token": "token de acesso invalido",
+            "missing_configuration": "O componente não está configurado consultar a documentação.",
+            "oauth_error": "Recebido dados incorretos do token.",
+            "reauth_successful": "Re-autenticação foi efetuada com sucesso",
+            "timeout_connect": "A ligação fez timeout",
+            "unknown": "Erro inesperado"
+        },
+        "create_entry": {
+            "default": "Foi correctamente autenticado"
+        },
+        "step": {
+            "auth": {
+                "title": "Link  para o conta Google "
+            },
+            "pick_implementation": {
+                "title": "Escolher o metodo de autenticação"
+            },
+            "reauth_confirm": {
+                "description": "O a integração do Google Photos precisa de autenticar novamente a tua conta",
+                "title": "Reauthenticate a Integração"
+            }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+              "menu_options": {
+                "albumselect": "Selecionar album",
+                "settings": "Configurações"
+              },
+              "title": "Adjustar opcções do Google Photos "
+            },
+            "albumselect": {
+              "data": {
+                  "album_id": "Album"
+              },
+              "title": "Adicionar um album ",
+              "description": "Album irá ser adicionado numa entidadade independente daqui a alguns momentos."
+            },
+            "settings": {
+                "data": {
+                    "mode": "Modo de escolha.",
+                    "interval": "Tempo de atualização",
+                    "attribute_metadata": "Escreve os metadados nos atributos"
+                },
+                "description": "Escolher como e quando a proxima foto é carregada. ATENÇÃO uma atualização muito frequente pode provocar um uso excessivo do API.",
+                "title": "Adjustar as configuações dp Google Photos."
+            }
+        }
+    }
+}

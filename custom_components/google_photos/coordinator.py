@@ -152,7 +152,7 @@ class Coordinator(DataUpdateCoordinator):
             },
             manufacturer=MANUFACTURER,
             name="Google Photos - " + self.album.get("title"),
-            configuration_url=self.album.get("productUrl"),
+            configuration_url=self.album.get("productUrl", None),
         )
 
     def set_context(self, context: dict[str, str | int]):

@@ -140,7 +140,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                     .execute()
                 )
                 album_list = album_list + result["albums"]
-            return album_list
+            return list(filter(lambda a: ("id" in a and "title" in a), album_list))
 
         albums = await self.hass.async_add_executor_job(get_albums)
         album_selection = dict({CONF_ALBUM_ID_FAVORITES: "Favorites"})

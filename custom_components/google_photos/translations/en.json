@@ -12,7 +12,8 @@
             "oauth_error": "Received invalid token data.",
             "reauth_successful": "Re-authentication was successful",
             "timeout_connect": "Timeout establishing connection",
-            "unknown": "Unexpected error"
+            "unknown": "Unexpected error",
+            "access_error": "Failed to query google api: {reason}"
         },
         "create_entry": {
             "default": "Successfully authenticated"
@@ -33,18 +34,18 @@
     "options": {
         "step": {
             "init": {
-              "menu_options": {
-                "albumselect": "Select album",
-                "settings": "Settings"
-              },
-              "title": "Adjust Google Photos options"
+                "menu_options": {
+                    "albumselect": "Select album",
+                    "settings": "Settings"
+                },
+                "title": "Adjust Google Photos options"
             },
             "albumselect": {
-              "data": {
-                  "album_id": "Album"
-              },
-              "title": "Select album to add",
-              "description": "Album will be added as a seperate entity after a short period of time."
+                "data": {
+                    "album_id": "Album"
+                },
+                "title": "Select album to add",
+                "description": "Album will be added as a seperate entity after a short period of time."
             },
             "settings": {
                 "data": {

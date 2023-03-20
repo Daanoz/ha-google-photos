@@ -88,7 +88,7 @@ Crop image to fit into the requested view.
 
 In combine images mode, the integration will combine two images of the same orientation if it calculates that showing two images side by side would lead to a lower loss in square pixels than cropping a single image. For example; two portrait images on a landscape view.
 
-## Card setups
+## Examples
 
 ### Dashboard Picture card
 
@@ -106,6 +106,20 @@ tap_action:
     mode: RANDOM
   target:
     entity_id: camera.google_photos_library_favorites
+```
+
+### Lovelace wall panel
+
+You can combine this integration with the [lovelace-wallpanel](https://github.com/j-a-n/lovelace-wallpanel) (min version 4.8) extension by [j-a-n](https://github.com/j-a-n) to show your photos as a screensaver on your dashboards.
+
+Home Assistant Dashboard configuration yaml (raw config):
+```yaml
+wallpanel:
+  enabled: true
+  hide_toolbar: true
+  hide_sidebar: true
+  fullscreen: true
+  image_url: media-entity://camera.google_photos_favorites_media
 ```
 
 ## Service

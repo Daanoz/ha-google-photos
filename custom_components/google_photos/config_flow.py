@@ -8,6 +8,7 @@ import voluptuous as vol
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError as GoogleApiError
 
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
@@ -82,7 +83,25 @@ class OAuth2FlowHandler(
             userinfo = lib.userinfo().get().execute()  # pylint: disable=no-member
             return userinfo
 
-        email = (await self.hass.async_add_executor_job(_get_profile))["email"]
+        def _check_photoslibrary_access() -> PhotosLibraryService:
+            lib = build(
+                "photoslibrary",
+                "v1",
+                credentials=credentials,
+                static_discovery=False,
+            )
+            albums = (
+                lib.albums().list(pageSize=1).execute()  # pylint: disable=no-member
+            )
+            return albums
+
+        try:
+            (await self.hass.async_add_executor_job(_check_photoslibrary_access))
+            email = (await self.hass.async_add_executor_job(_get_profile))["email"]
+        except GoogleApiError as ex:
+            return self.async_abort(
+                reason="access_error", description_placeholders={"reason": ex.reason}
+            )
 
         await self.async_set_unique_id(email)
         self._abort_if_unique_id_configured()

@@ -52,15 +52,20 @@ class MediaMetadata(TypedDict):
     video: Optional[MediaMetadataVideo]
 
 
-class MediaItem(TypedDict):
-    """Representation of a media item (such as a photo or video) in Google Photos."""
+class MediaListItem(TypedDict):
+    """Representation of a media item (such as a photo or video) as part of a list in Google Photos."""
 
     id: str
+    mediaMetadata: Optional[MediaMetadata]
+
+
+class MediaItem(MediaListItem):
+    """Representation of a media item (such as a photo or video) in Google Photos."""
+
     description: str
     productUrl: str
     baseUrl: str
     mimeType: str
-    mediaMetadata: Optional[MediaMetadata]
     contributorInfo: Optional[MediaContributorInfo]
     filename: str
 

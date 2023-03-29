@@ -146,25 +146,22 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
 
         def get_albums() -> List[Album]:
             service: PhotosLibraryService = get_photoslibrary()
-            result = (
-                service.albums()  # pylint: disable=no-member
-                .list(pageSize=50)
-                .execute()
-            )
-            album_list = result["albums"]
-            while "nextPageToken" in result and result["nextPageToken"] != "":
-                result = (
-                    service.albums()  # pylint: disable=no-member
-                    .list(pageSize=50, pageToken=result["nextPageToken"])
-                    .execute()
-                )
+            albums = service.albums()  # pylint: disable=no-member
+            fields = "albums(id,title,mediaItemsCount),nextPageToken"
+            request = albums.list(pageSize=50, fields=fields)
+            album_list = []
+            while request is not None:
+                result = request.execute()
                 album_list = album_list + result["albums"]
+                request = albums.list_next(request, result)
             return list(filter(lambda a: ("id" in a and "title" in a), album_list))
 
         albums = await self.hass.async_add_executor_job(get_albums)
         album_selection = dict({CONF_ALBUM_ID_FAVORITES: "Favorites"})
         for album in albums:
-            album_selection[album["id"]] = album["title"]
+            album_selection[album["id"]] = "{} ({} items)".format(
+                album["title"], album["mediaItemsCount"]
+            )
 
         return vol.Schema(
             {

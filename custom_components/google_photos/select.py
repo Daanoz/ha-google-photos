@@ -76,8 +76,9 @@ class GooglePhotosSelectCropMode(SelectEntity, RestoreEntity):
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
-        self.coordinator.set_crop_mode(option)
-        self.async_write_ha_state()
+        if option is not self.coordinator.crop_mode:
+            self.coordinator.set_crop_mode(option)
+            self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
@@ -124,8 +125,9 @@ class GooglePhotosSelectImageSelectionMode(SelectEntity, RestoreEntity):
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
-        self.coordinator.set_image_selection_mode(option)
-        self.async_write_ha_state()
+        if option is not self.coordinator.image_selection_mode:
+            self.coordinator.set_image_selection_mode(option)
+            self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
@@ -174,8 +176,9 @@ class GooglePhotosSelectInterval(SelectEntity, RestoreEntity):
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
-        self.coordinator.set_interval(option)
-        self.async_write_ha_state()
+        if option is not self.coordinator.interval:
+            self.coordinator.set_interval(option)
+            self.async_write_ha_state()
 
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""

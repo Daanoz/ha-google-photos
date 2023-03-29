@@ -1,7 +1,7 @@
 """Coordinators to fetch data for all entities"""
 from __future__ import annotations
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import logging
 import math
@@ -24,7 +24,7 @@ from PIL import Image
 import io
 
 from .api import AsyncConfigEntryAuth
-from .api_types import Album, MediaItem, PhotosLibraryService
+from .api_types import Album, MediaItem, MediaListItem, PhotosLibraryService
 from .const import (
     CONF_ALBUM_ID_FAVORITES,
     DOMAIN,
@@ -89,17 +89,14 @@ class Coordinator(DataUpdateCoordinator):
 
     _auth: AsyncConfigEntryAuth
     _config: ConfigEntry
-    _context: dict[str, str | int] = dict()
+
     album: Album = None
     album_id: str
-    album_list: List[MediaItem] = []
+    album_contents: AlbumDownloader
     current_media_primary: MediaDownloader | None = None
     current_media_secondary: MediaDownloader | None = None
-
     current_media_cache: Dict[str, bytes] = {}
 
-    # Timestamop when these items where loaded
-    album_list_timestamp = datetime.fromtimestamp(0)
     # Media selection timestamp, when was this image selected to be shown,
     # used to calculate when to move to the next one
     current_media_selected_timestamp = datetime.fromtimestamp(0)
@@ -129,13 +126,15 @@ class Coordinator(DataUpdateCoordinator):
 
         if self.album_id == CONF_ALBUM_ID_FAVORITES:
             filters = {"featureFilter": {"includedFeatures": ["FAVORITES"]}}
-            self.set_context(dict(filters=filters))
+            context = dict(filters=filters)
             self.album = Album(id=self.album_id, title="Favorites", isWriteable=False)
         else:
-            self.set_context(dict(albumId=self.album_id))
+            context = dict(albumId=self.album_id)
+        self.album_contents = AlbumDownloader(hass, auth, context)
 
     @property
     def current_media(self) -> MediaItem | None:
+        """Get current media item"""
         if self.current_media_primary is None:
             return None
         return self.current_media_primary.media
@@ -154,10 +153,6 @@ class Coordinator(DataUpdateCoordinator):
             name="Google Photos - " + self.album.get("title"),
             configuration_url=self.album.get("productUrl", None),
         )
-
-    def set_context(self, context: dict[str, str | int]):
-        """Set coordinator context"""
-        self._context = context
 
     def set_crop_mode(self, crop_mode: str):
         """Set crop mode"""
@@ -178,24 +173,6 @@ class Coordinator(DataUpdateCoordinator):
             return self._config.options[prop]
         return default
 
-    def photo_media_list(self) -> List[MediaItem]:
-        """Get photos from media list"""
-        return list(
-            filter(
-                lambda m: (m.get("mediaMetadata") or {}).get("photo") is not None,
-                self.album_list,
-            )
-        )
-
-    def video_media_list(self) -> List[MediaItem]:
-        """Get videos from media list"""
-        return list(
-            filter(
-                lambda m: (m.get("mediaMetadata") or {}).get("video") is not None,
-                self.album_list,
-            )
-        )
-
     def current_media_id(self) -> str | None:
         """Id of current media"""
         media = self.current_media
@@ -203,33 +180,28 @@ class Coordinator(DataUpdateCoordinator):
             return None
         return media.get("id")
 
-    async def set_current_media_with_id(self, media_id: str):
+    async def set_current_media_with_id(self, media_id: str | None):
         """Sets current selected media using only the id"""
+        if media_id is None:
+            return
         try:
-            service = await self._auth.get_resource(self.hass)
-
-            def _get_media_item() -> MediaItem:
-                return service.mediaItems().get(mediaItemId=media_id).execute()
-
-            self.set_current_media(
-                await self.hass.async_add_executor_job(_get_media_item)
+            media = await self._get_media_by_id(media_id)
+            self.current_media_primary = MediaDownloader(
+                self.hass, self._auth, media, datetime.now()
             )
+            self.current_media_secondary = None
+            self.current_media_cache = {}
+            self.current_media_selected_timestamp = datetime.now()
+            self.async_update_listeners()
         except aiohttp.ClientError as err:
-            _LOGGER.error("Error getting image from %s: %s", self._context, err)
+            _LOGGER.error(
+                "Error getting image from %s: %s", self.album_contents.context, err
+            )
 
-    def set_current_media(self, media: MediaItem):
-        """Sets current selected media"""
-        self.current_media_primary = MediaDownloader(
-            self.hass, self._auth, media, self.album_list_timestamp
-        )
-        self.current_media_secondary = None
-        self.current_media_cache = {}
-        self.current_media_selected_timestamp = datetime.now()
-        self.async_update_listeners()
-
-    def refresh_current_image(self) -> bool:
+    async def refresh_current_image(self) -> bool:
         """Selects next image if interval has passed"""
-        self.hass.async_add_job(self._refresh_album_list)
+        if self.album_contents.requires_refresh:
+            self.hass.async_add_job(self.async_request_refresh)
         interval = SETTING_INTERVAL_MAP.get(self.interval)
         if interval is None:
             return False
@@ -238,27 +210,28 @@ class Coordinator(DataUpdateCoordinator):
             datetime.now() - self.current_media_selected_timestamp
         ).total_seconds()
         if time_delta > interval or self.current_media is None:
-            self.select_next()
+            await self.select_next()
             return True
         return False
 
-    def select_next(self, mode=None):
+    async def select_next(self, mode=None):
         """Select next media based on config"""
         mode = mode or self.image_selection_mode
         if mode.lower() == SETTING_IMAGESELECTION_MODE_ALBUM_ORDER.lower():
-            self.select_sequential_media()
+            await self._select_sequential_media()
         else:
-            self.select_random_media()
+            await self._select_random_media()
 
-    def select_random_media(self):
+    async def _select_random_media(self):
         """Selects a random media item from the list"""
-        media_list = self.photo_media_list()
+        media_list = self.album_contents.photo_media_list()
         if len(media_list) > 1:
-            self.set_current_media(random.choice(media_list))
+            item = random.choice(media_list)
+            await self.set_current_media_with_id(item.get("id"))
 
-    def select_sequential_media(self):
+    async def _select_sequential_media(self):
         """Finds the current photo in the list, and moves to the next"""
-        media_list = self.photo_media_list()
+        media_list = self.album_contents.photo_media_list()
         if len(media_list) < 1:
             return
         current_index = -1
@@ -269,7 +242,8 @@ class Coordinator(DataUpdateCoordinator):
                 break
         current_index = current_index + 1
         current_index = current_index % len(media_list)
-        self.set_current_media(media_list[current_index])
+        item = media_list[current_index]
+        await self.set_current_media_with_id(item.get("id"))
 
     async def get_media_data(self, width: int | None = None, height: int | None = None):
         """Get a binary image data for the current media"""
@@ -322,13 +296,16 @@ class Coordinator(DataUpdateCoordinator):
                     is media_is_portrait
                 )
                 and (m.get("id") != self.current_media_id()),
-                self.photo_media_list(),
+                self.album_contents.photo_media_list(),
             )
             secondary_media = random.choice(list(similar_orientation_images))
             if secondary_media is None:
                 return None
             self.current_media_secondary = MediaDownloader(
-                self.hass, self._auth, secondary_media, self.album_list_timestamp
+                self.hass,
+                self._auth,
+                await self._get_media_by_id(secondary_media.get("id")),
+                datetime.now(),
             )
 
         size_str = (
@@ -361,9 +338,18 @@ class Coordinator(DataUpdateCoordinator):
                 output.save(result, "JPEG")
                 return result.getvalue()
 
+    async def _get_media_by_id(self, media_id: str | None) -> MediaItem:
+        service = await self._auth.get_resource(self.hass)
+
+        def _get_media_item() -> MediaItem:
+            return service.mediaItems().get(mediaItemId=media_id).execute()
+
+        return await self.hass.async_add_executor_job(_get_media_item)
+
     async def update_data(self):
         """Check if media list or current image needs to be refreshed"""
-        await self._refresh_album_list()
+        await self.album_contents.refresh_album_list()
+        self.update_interval = self.album_contents.update_interval
 
     def _is_portrait(self, dimensions: Tuple[float, float]) -> bool:
         """Returns if the given dimension represent a portrait media item"""
@@ -403,38 +389,6 @@ class Coordinator(DataUpdateCoordinator):
             return None
         return (float(width), float(height))
 
-    async def _get_album_list(self):
-        try:
-            service = await self._auth.get_resource(self.hass)
-            search_query = self._context.copy()
-            search_query["pageSize"] = 100
-
-            def sync_get_album_list() -> List[MediaItem]:
-                result = service.mediaItems().search(body=search_query).execute()
-                if not "mediaItems" in result:
-                    return []
-
-                album_list = result["mediaItems"]
-                while "nextPageToken" in result and result["nextPageToken"] != "":
-                    search_query["pageToken"] = result["nextPageToken"]
-                    result = service.mediaItems().search(body=search_query).execute()
-                    album_list = album_list + result["mediaItems"]
-                return album_list
-
-            self.album_list = await self.hass.async_add_executor_job(
-                sync_get_album_list
-            )
-            self.album_list_timestamp = datetime.now()
-        except aiohttp.ClientError as err:
-            _LOGGER.error("Error getting media lise from %s: %s", self._context, err)
-
-    async def _refresh_album_list(self) -> bool:
-        cache_delta = (datetime.now() - self.album_list_timestamp).total_seconds()
-        if cache_delta < FIFTY_MINUTES:
-            return False
-        await self._get_album_list()
-        return True
-
     async def _async_update_data(self):
         """Fetch album data"""
 
@@ -452,6 +406,139 @@ class Coordinator(DataUpdateCoordinator):
                 await self.update_data()
         except Exception as err:
             raise UpdateFailed(f"Error communicating with API: {err}") from err
+
+
+class AlbumDownloader:
+    """Utility class for downloading the album contents"""
+
+    _auth: AsyncConfigEntryAuth
+    _hass: HomeAssistant
+    _items_per_page = 100
+    _content_refresh_interval = timedelta(
+        hours=3,
+        minutes=random.randint(
+            0, 15
+        ),  # Randomize a bit to avoid all albums updating simultaneously
+    )
+    _loading = False
+    _last_page_token = None
+    _current_page_offset = 0
+
+    album_list: List[MediaListItem] = []
+    context: dict[str, str | int]
+    update_interval: timedelta | None
+
+    # Timestamp when these items where loaded
+    album_list_timestamp = datetime.fromtimestamp(0)
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        auth: AsyncConfigEntryAuth,
+        context: dict[str, str | int],
+    ) -> None:
+        self._hass = hass
+        self._auth = auth
+        self.context = context
+
+    async def _get_album_list(self):
+        """This function will incrementally load the media list to avoid overloading the google servers. To avoid the media list being emptied every refresh interval, contents are replaced in place."""
+        try:
+            if self._loading:
+                return
+            self._loading = True
+
+            # Limit the amount of items that are requested on each load so we don't bash the servers to much
+            loop_limit = 300
+
+            if self._last_page_token is None:
+                # If the token is None, we are building the media list from scratch
+                self._current_page_offset = 0
+                # First request, only load the first 100 to speed up integration load times
+                loop_limit = 100
+
+            service = await self._auth.get_resource(self._hass)
+            search_query = self.context.copy()
+            fields = "mediaItems(id,mediaMetadata(photo,video)),nextPageToken"
+            search_query["pageSize"] = self._items_per_page
+
+            def sync_get_album_list() -> List[MediaListItem]:
+                current_size = 0
+                while current_size < loop_limit:
+                    search_query["pageToken"] = self._last_page_token
+                    result = (
+                        service.mediaItems()
+                        .search(body=search_query, fields=fields)
+                        .execute()
+                    )
+                    if not "mediaItems" in result:
+                        return
+
+                    self._last_page_token = result.get("nextPageToken")
+                    result_count = len(result.get("mediaItems"))
+                    # Overwrite array slice with new items
+                    self.album_list[
+                        self._current_page_offset : (
+                            self._current_page_offset + result_count
+                        )
+                    ] = result.get("mediaItems")
+                    self._current_page_offset += result_count
+                    current_size += result_count
+                    if self._last_page_token is None:
+                        break
+
+            await self._hass.async_add_executor_job(sync_get_album_list)
+
+            if self._last_page_token is None:
+                # No token in last result, we are done loading!
+                self.album_list_timestamp = datetime.now()
+                self.update_interval = None
+                self.album_list = self.album_list[0 : self._current_page_offset]
+            else:
+                self.update_interval = timedelta(seconds=30)
+
+        except aiohttp.ClientError as err:
+            _LOGGER.error("Error getting media list from %s: %s", self.context, err)
+
+        finally:
+            self._loading = False
+
+    async def refresh_album_list(self) -> bool:
+        """Check if content requires refresh"""
+        if not self.requires_refresh:
+            self.update_interval = None
+            return False
+        await self._get_album_list()
+        return True
+
+    def photo_media_list(self) -> List[MediaListItem]:
+        """Get photos from media list"""
+        return list(
+            filter(
+                lambda m: (m.get("mediaMetadata") or {}).get("photo") is not None,
+                self.album_list,
+            )
+        )
+
+    def video_media_list(self) -> List[MediaListItem]:
+        """Get videos from media list"""
+        return list(
+            filter(
+                lambda m: (m.get("mediaMetadata") or {}).get("video") is not None,
+                self.album_list,
+            )
+        )
+
+    @property
+    def requires_refresh(self) -> bool:
+        """Does the content require a refresh"""
+        cache_delta = datetime.now() - self.album_list_timestamp
+        return cache_delta > self._content_refresh_interval
+
+    @property
+    def is_building_list(self) -> bool:
+        """Is the media list still being downloaded"""
+        return self._last_page_token is not None
 
 
 class MediaDownloader:

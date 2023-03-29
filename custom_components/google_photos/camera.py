@@ -129,13 +129,13 @@ class GooglePhotosBaseCamera(Camera):
 
     def next_media(self, mode=None):
         """Load the next media."""
-        self.coordinator.select_next(mode)
+        self.hass.async_add_job(self.coordinator.select_next(mode))
 
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
         """Return a still image response from the camera."""
-        self.coordinator.refresh_current_image()
+        await self.coordinator.refresh_current_image()
         if self.coordinator.current_media is None:
             _LOGGER.warning("No media selected for %s", self.name)
             return None

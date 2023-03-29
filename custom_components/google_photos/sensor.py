@@ -6,6 +6,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorEntityDescription,
     SensorDeviceClass,
+    SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -165,7 +166,11 @@ class GooglePhotosMediaCount(SensorEntity):
         album_id = self.coordinator.album["id"]
         self._attr_device_info = self.coordinator.get_device_info()
         self._attr_unique_id = f"{album_id}-mediacount"
-        self._attr_native_value = len(self.coordinator.album_list)
+        self._attr_state_class = SensorStateClass.TOTAL
+        self._attr_native_value = len(self.coordinator.album_contents.album_list)
+        self._attr_extra_state_attributes = {
+            "is_updating": self.coordinator.album_contents.is_building_list
+        }
 
     async def async_added_to_hass(self) -> None:
         """When entity is added to hass."""
@@ -187,5 +192,8 @@ class GooglePhotosMediaCount(SensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        self._attr_native_value = len(self.coordinator.album_list)
+        self._attr_native_value = len(self.coordinator.album_contents.album_list)
+        self._attr_extra_state_attributes[
+            "is_updating"
+        ] = self.coordinator.album_contents.is_building_list
         self.async_write_ha_state()

@@ -22,7 +22,7 @@ Platform | Name | Description
 `camera` | `media` | An image from the Google Photos Album.
 `sensor` | `filename` | Filename of the currently selected media item.
 `sensor` | `creation_timestamp` | Timestamp of the currently selected media item.
-`sensor` | `media_count` | Counter showing the number of media items in the album (photo + video).
+`sensor` | `media_count` | Counter showing the number of media items in the album (photo + video). It could take a while to populate all media items, to check if the integration is still loading an attribute `is_updating` is available.
 `select` | `image_selection_mode` | Configuration setting on how to pick the next image.
 `select` | `crop_mode` | Configuration setting on how to crop the image, either `Original`, `Crop` or `Combine images` [(explanation)](#crop-modes).
 `select` | `update_interval` | Configuration setting on how often to update the image, if you have a lot of albums running on your instance it is adviseable to not set this to low.
@@ -144,11 +144,11 @@ data:
 
 ## Notes / Remarks / Limitations
 
-- Currently the album media list is cached for 50 minutes.
+- Currently the album media list is cached for 3 hours.
+- Directly after loading the integration / starting HA, the album will only contain 100 items. This is done to reduce server load on the Google Photos servers, every 30 seconds a new batch of media is requested.
 
 ## Future plans
-
-- Reduce start-up time integration (currently loads entire album which can be slow)
+- Give end user more control over album cache time
 - Support for videos
 - Support loading media using [content categories](https://developers.google.com/photos/library/guides/apply-filters#content-categories)
 - Support loading media filtered by date/time

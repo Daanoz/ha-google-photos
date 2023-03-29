@@ -414,7 +414,12 @@ class AlbumDownloader:
     _auth: AsyncConfigEntryAuth
     _hass: HomeAssistant
     _items_per_page = 100
-    _content_refresh_interval = timedelta(hours=3)
+    _content_refresh_interval = timedelta(
+        hours=3,
+        minutes=random.randint(
+            0, 15
+        ),  # Randomize a bit to avoid all albums updating simultaneously
+    )
     _loading = False
     _last_page_token = None
     _current_page_offset = 0

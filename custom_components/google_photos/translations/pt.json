@@ -33,18 +33,18 @@
     "options": {
         "step": {
             "init": {
-              "menu_options": {
-                "albumselect": "Selecionar album",
-                "settings": "Configurações"
-              },
-              "title": "Adjustar opcções do Google Photos "
+                "menu_options": {
+                    "albumselect": "Selecionar album",
+                    "settings": "Configurações"
+                },
+                "title": "Adjustar opcções do Google Photos "
             },
             "albumselect": {
-              "data": {
-                  "album_id": "Album"
-              },
-              "title": "Adicionar um album ",
-              "description": "Album irá ser adicionado numa entidadade independente daqui a alguns momentos."
+                "data": {
+                    "album_id": "Album"
+                },
+                "title": "Adicionar um album ",
+                "description": "Album irá ser adicionado numa entidadade independente daqui a alguns momentos."
             },
             "settings": {
                 "data": {
@@ -52,8 +52,8 @@
                     "interval": "Tempo de atualização",
                     "attribute_metadata": "Escreve os metadados nos atributos"
                 },
-                "description": "Escolher como e quando a proxima foto é carregada. ATENÇÃO uma atualização muito frequente pode provocar um uso excessivo do API.",
-                "title": "Adjustar as configuações dp Google Photos."
+                "description": "Adjustar as configuações dp Google Photos.",
+                "title": "Configurações"
             }
         }
     }

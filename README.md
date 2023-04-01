@@ -74,6 +74,16 @@ Platform | Name | Description
 
 After the setup is complete a device will be created with entity for your favorite photos. To add more albums from you account, click configure on the integration card.
 
+### Example setup
+
+Screenshots:
+- [OAuth consent screen setup](/docs/OAuthConsentOverview.png)
+- [OAuth consent screen edit, step1](/docs/OAuthConsent1.png)
+- [OAuth consent screen edit, step2](/docs/OAuthConsent2.png)
+- [OAuth consent screen edit, step3](/docs/OAuthConsent3.png)
+- [OAuth consent screen edit, step4](/docs/OAuthConsent4.png)
+- [Credentials](/docs/Credentials.png)
+
 ## Crop modes
 
 ### Original
@@ -119,7 +129,13 @@ wallpanel:
   hide_toolbar: true
   hide_sidebar: true
   fullscreen: true
-  image_url: media-entity://camera.google_photos_favorites_media
+  image_url: media-entity://camera.google_photos_favorites_media,
+  cards:
+      # Note: For this markdown card to work you need to enable write metadata in the integration settings.
+    - type: markdown
+      content: >-
+        {{states.camera.google_photos_favorites_media.attributes.media_metadata.photo.cameraMake}},
+        {{states.camera.google_photos_favorites_media.attributes.media_metadata.photo.cameraModel}}
 ```
 
 ## Service
@@ -154,6 +170,17 @@ data:
 - Support loading media filtered by date/time
 - Custom photo carousel fronted component
 - Add trigger on new media
+
+## Debug Logging
+To enable debug log, add the following lines to your configuration.yaml and restart your HomeAssistant.
+
+```yaml
+logger:
+  default: info
+  logs:
+    custom_components.google_photos: debug
+    googleapiclient: debug
+```
 
 ## Contributions are welcome!
 

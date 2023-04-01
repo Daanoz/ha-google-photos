@@ -23,7 +23,7 @@ If you are unsure about the version check the const.py file.
 
 ```yaml
 
-Add your logs here.
+Add your configuration here.
 
 ```
 
@@ -33,7 +33,7 @@ A clear and concise description of what the bug is.
 
 ## Debug log
 
-<!-- To enable debug logs check this https://www.home-assistant.io/components/logger/ -->
+<!-- To enable debug logs check this https://github.com/Daanoz/ha-google-photos#debug-logging -->
 
 ```text
 

@@ -46,12 +46,10 @@
       },
       "settings": {
         "data": {
-          "mode": "Selection mode.",
-          "interval": "Refresh interval",
           "attribute_metadata": "Write metadata to attributes"
         },
-        "description": "Choose how and when the next photo is loaded. Warning: a high refresh rate for a lot of albums might lead into google api limits.",
-        "title": "Adjust Google Photos options."
+        "description": "Adjust Google Photos options.",
+        "title": "Settings"
       }
     }
   },

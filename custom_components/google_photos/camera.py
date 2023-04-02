@@ -152,12 +152,3 @@ class GooglePhotosAlbumCamera(GooglePhotosBaseCamera):
         album_id = self.coordinator.album["id"]
         self._attr_unique_id = f"{album_id}-media"
         self._attr_device_info = self.coordinator.get_device_info()
-
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        if self.coordinator.album.get("coverPhotoMediaItemId") is None:
-            self.next_media()
-        else:
-            await self.coordinator.set_current_media_with_id(
-                self.coordinator.album.get("coverPhotoMediaItemId")
-            )

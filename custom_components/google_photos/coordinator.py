@@ -7,6 +7,7 @@ import logging
 import math
 import random
 from typing import Dict, List, Tuple
+import io
 import aiohttp
 import async_timeout
 from homeassistant.core import HomeAssistant
@@ -21,7 +22,6 @@ from homeassistant.helpers.aiohttp_client import (
 from homeassistant.helpers.entity import DeviceInfo
 
 from PIL import Image
-import io
 
 from .api import AsyncConfigEntryAuth
 from .api_types import Album, MediaItem, MediaListItem, PhotosLibraryService
@@ -130,6 +130,7 @@ class Coordinator(DataUpdateCoordinator):
             self.album = Album(id=self.album_id, title="Favorites", isWriteable=False)
         else:
             context = dict(albumId=self.album_id)
+        _LOGGER.debug("Creating new coordinator for: %s", context)
         self.album_contents = AlbumDownloader(hass, auth, context)
 
     @property
@@ -185,26 +186,27 @@ class Coordinator(DataUpdateCoordinator):
         if media_id is None:
             return
         try:
+            self.current_media_selected_timestamp = datetime.now()
             media = await self._get_media_by_id(media_id)
             self.current_media_primary = MediaDownloader(
                 self.hass, self._auth, media, datetime.now()
             )
             self.current_media_secondary = None
             self.current_media_cache = {}
-            self.current_media_selected_timestamp = datetime.now()
             self.async_update_listeners()
         except aiohttp.ClientError as err:
+            self.current_media_selected_timestamp = 0
             _LOGGER.error(
                 "Error getting image from %s: %s", self.album_contents.context, err
             )
 
     async def refresh_current_image(self) -> bool:
         """Selects next image if interval has passed"""
-        if self.album_contents.requires_refresh:
-            self.hass.async_add_job(self.async_request_refresh)
         interval = SETTING_INTERVAL_MAP.get(self.interval)
         if interval is None:
             return False
+        if self.album_contents.requires_refresh:
+            self.hass.async_add_job(self.async_request_refresh)
 
         time_delta = (
             datetime.now() - self.current_media_selected_timestamp
@@ -351,6 +353,14 @@ class Coordinator(DataUpdateCoordinator):
         await self.album_contents.refresh_album_list()
         self.update_interval = self.album_contents.update_interval
 
+        if self.current_media is None and self.album is not None:
+            if self.album.get("coverPhotoMediaItemId") is None:
+                await self.select_next(None)
+            else:
+                await self.set_current_media_with_id(
+                    self.album.get("coverPhotoMediaItemId")
+                )
+
     def _is_portrait(self, dimensions: Tuple[float, float]) -> bool:
         """Returns if the given dimension represent a portrait media item"""
         return dimensions[0] < dimensions[1]
@@ -414,12 +424,7 @@ class AlbumDownloader:
     _auth: AsyncConfigEntryAuth
     _hass: HomeAssistant
     _items_per_page = 100
-    _content_refresh_interval = timedelta(
-        hours=3,
-        minutes=random.randint(
-            0, 15
-        ),  # Randomize a bit to avoid all albums updating simultaneously
-    )
+    _content_refresh_interval = timedelta(hours=0, minutes=15)
     _loading = False
     _last_page_token = None
     _current_page_offset = 0
@@ -459,7 +464,9 @@ class AlbumDownloader:
 
             service = await self._auth.get_resource(self._hass)
             search_query = self.context.copy()
-            fields = "mediaItems(id,mediaMetadata(photo,video)),nextPageToken"
+            fields = (
+                "mediaItems(id,mediaMetadata(width,height,photo,video)),nextPageToken"
+            )
             search_query["pageSize"] = self._items_per_page
 
             def sync_get_album_list() -> List[MediaListItem]:

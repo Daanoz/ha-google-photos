@@ -5,7 +5,7 @@ import logging
 from aiohttp.client_exceptions import ClientError, ClientResponseError
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
-from homeassistant.const import CONF_NAME, Platform
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
@@ -53,18 +53,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except ClientError as err:
         raise ConfigEntryNotReady from err
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = dict(
-        {"auth": auth, "coordinator_manager": CoordinatorManager(hass, entry, auth)}
+        {
+            "auth": auth,
+            "coordinator_manager": CoordinatorManager(hass, entry, auth),
+            "loaded_options": {**entry.options},
+        }
     )
-
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(update_listener))
 
     return True
 
 
-async def update_listener(hass, entry):
-    """Handle options update."""
-    await hass.config_entries.async_reload(entry.entry_id)
+async def update_listener(hass: HomeAssistant, updated_entry: ConfigEntry):
+    """Handle an options update.
+
+    Only reload integration if the optons are changed, skip if for example the auth token has been updated
+    """
+    current_options = hass.data.setdefault(DOMAIN, {})[updated_entry.entry_id].get(
+        "loaded_options"
+    )
+    updated_options = {**updated_entry.options}
+    if updated_options == current_options:
+        _LOGGER.debug("update_listener triggered (no option change)")
+        return
+    _LOGGER.debug("update_listener triggered (options changed)")
+    await hass.config_entries.async_reload(updated_entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -83,12 +97,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload config entry."""
-    await async_unload_entry(hass, entry)
-    await async_setup_entry(hass, entry)
-
-
 async def async_remove_config_entry_device(
     hass: HomeAssistant, config_entry: ConfigEntry, device_entry: DeviceEntry
 ) -> bool:
@@ -96,16 +104,21 @@ async def async_remove_config_entry_device(
     identifier = next((id for id in device_entry.identifiers if id[0] == DOMAIN), None)
     if identifier is None:
         return False
+    coordinator_manager: CoordinatorManager = hass.data.get(DOMAIN)[
+        config_entry.entry_id
+    ].get("coordinator_manager")
     album_id = identifier[len(identifier) - 1]
     options = config_entry.options.copy()
     albums = options.get(CONF_ALBUM_ID, []).copy()
     if album_id in albums:
         albums.remove(album_id)
         options.update({CONF_ALBUM_ID: albums})
+        hass.data.setdefault(DOMAIN, {})[config_entry.entry_id].update(
+            {
+                "loaded_options": {**options},
+            }
+        )
         hass.config_entries.async_update_entry(config_entry, options=options)
 
-    coordinator_manager: CoordinatorManager = hass.data.get(DOMAIN)[
-        config_entry.entry_id
-    ].get("coordinator_manager")
     coordinator_manager.remove_coordinator(album_id)
     return True

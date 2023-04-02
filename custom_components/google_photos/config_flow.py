@@ -159,8 +159,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         albums = await self.hass.async_add_executor_job(get_albums)
         album_selection = dict({CONF_ALBUM_ID_FAVORITES: "Favorites"})
         for album in albums:
-            album_selection[album["id"]] = "{} ({} items)".format(
-                album["title"], album["mediaItemsCount"]
+            album_selection[album.get("id")] = "{0} ({1} items)".format(
+                album.get("title"), album.get("mediaItemsCount", "?")
             )
 
         return vol.Schema(

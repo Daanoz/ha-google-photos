@@ -162,7 +162,7 @@ data:
 
 ### How can I change my credentials? / I entered the wrong credentials now what?
 
-Go to https://`your_ha_instance`/config/application_credentials (or click the 3 dot menu on the integrations screen), here you can delete the credentials, the setup flow will ask for new credentials again when setting up the integration.
+Go to [![Open your Home Assistant instance and Manage your application credentials.](https://my.home-assistant.io/badges/application_credentials.svg)](https://my.home-assistant.io/redirect/application_credentials/) (or click the 3 dot menu on the integrations screen), here you can delete the credentials, the setup flow will ask for new credentials again when setting up the integration.
 
 ### Why is it always loading the same image after loading the integration?
 

@@ -158,6 +158,16 @@ data:
 | entity_id | Yes | | Entity name of a Google Photo album camera. |
 | mode | No | `Random` | Selection mode next image, either `Random` or `Album order` |
 
+## FAQ
+
+### How can I change my credentials? / I entered the wrong credentials now what?
+
+Go to https://`your_ha_instance`/config/application_credentials (or click the 3 dot menu on the integrations screen), here you can delete the credentials, the setup flow will ask for new credentials again when setting up the integration.
+
+### Why is it always loading the same image after loading the integration?
+
+This is the cover photo of you album, you can change it in Google Photos, or trigger a `next_media` on the service after start-up.
+
 ## Notes / Remarks / Limitations
 
 - Currently the album media list is cached for 3 hours.

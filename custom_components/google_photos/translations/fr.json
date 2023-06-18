@@ -1,0 +1,59 @@
+{
+    "application_credentials": {
+        "description": "Suivez les [instructions]({more_info_url}) pour l'[Écran de consentement OAuth]({oauth_consent_url}) pour permettre à Home Assistant d'accéder à vos photos Google. Vous devez également créer des informations d'identification d'application liées à votre compte :\n1. Allez à [Identifiants]({oauth_creds_url}) et cliquez **Créer des identifiants**.\n1. Dans la liste déroulante, sélectionnez **ID Client OAuth**.\n1. Selectionnez **Application Web** comme type d'application.\n\n"
+    },
+    "config": {
+        "abort": {
+            "already_configured": "Le compte est déjà configuré",
+            "already_in_progress": "La configuration est déjà en cours",
+            "cannot_connect": "Échec de connexion",
+            "invalid_access_token": "Jeton d'accès invalide",
+            "missing_configuration": "Le composant n'est pas configuré. Veuillez suivre la documentation.",
+            "oauth_error": "Les données de jeton reçues sont invalides.",
+            "reauth_successful": "La réauthentification a réussi",
+            "timeout_connect": "Délais de connexion expiré",
+            "unknown": "Erreur inconnue",
+            "access_error": "Échec de l'interrogation de l'API Google : {reason}"
+        },
+        "create_entry": {
+            "default": "Authentifié avec succès"
+        },
+        "step": {
+            "auth": {
+                "title": "Associer un compte Google"
+            },
+            "pick_implementation": {
+                "title": "Choisir la méthode d'authentification"
+            },
+            "reauth_confirm": {
+                "description": "L'intégration de Google Photos doit ré-authentifier votre compte",
+                "title": "Réauthentifier l'intégration"
+            }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "menu_options": {
+                    "albumselect": "Sélectionner l'album",
+                    "settings": "Paramètres"
+                },
+                "title": "Ajuster les options de Google Photos"
+            },
+            "albumselect": {
+                "data": {
+                    "album_id": "Album"
+                },
+                "title": "Sélectionnez l'album à ajouter",
+                "description": "L'album sera ajouté en tant qu'entité distincte après une courte période."
+            },
+            "settings": {
+                "data": {
+                    "attribute_metadata": "Écrire les métadonnées comme attributs"
+                },
+                "description": "Ajustez les options de Google Photos.",
+                "title": "Paramètres"
+            }
+        }
+    }
+}

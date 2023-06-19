@@ -1,0 +1,59 @@
+{
+    "application_credentials": {
+        "description": "Volg de [instructies]({more_info_url}) voor [OAuth consent screen]({oauth_consent_url}) om Home Assistant toegang te geven tot je Google Photos. Je moet ook Application Credentials aanmaken die aan je account zijn gekoppeld:\n1. Ga naar [Credentials]({oauth_creds_url}) and klik op **Create Credentials**.\n1. Selecteer in de keuzelijst **OAuth client ID**.\n1. Selecteer **Web application** als Applicationtype.\n\n"
+    },
+    "config": {
+        "abort": {
+            "already_configured": "Account is al geconfigureerd",
+            "already_in_progress": "Configuration flow is al bezig",
+            "cannot_connect": "Kon niet verbinden",
+            "invalid_access_token": "Ongeldig toegangstoken",
+            "missing_configuration": "Het integratie is niet geconfigureerd. Volg de documentatie.",
+            "oauth_error": "Ongeldige tokengegevens ontvangen.",
+            "reauth_successful": "De herauthenticatie is gelukt",
+            "timeout_connect": "Time-out bij verbinding tot stand brengen",
+            "unknown": "Onverwachte fout",
+            "access_error": "Fout bij communicatie met google api: {reason}"
+        },
+        "create_entry": {
+            "default": "Succesvol geauthenticeerd"
+        },
+        "step": {
+            "auth": {
+                "title": "Koppel Google Account"
+            },
+            "pick_implementation": {
+                "title": "Kies authenticatie methode"
+            },
+            "reauth_confirm": {
+                "description": "De Google Foto's-integratie moet uw account opnieuw verifiëren",
+                "title": "Integratie opnieuw verifiëren"
+            }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "menu_options": {
+                    "albumselect": "Selecteer album",
+                    "settings": "Instellingen"
+                },
+                "title": "Google Photos instellingen aanpassen"
+            },
+            "albumselect": {
+                "data": {
+                    "album_id": "Album"
+                },
+                "title": "Selecteer album om toe te voegen",
+                "description": "Album zal na korte tijd als een aparte entiteit worden toegevoegd."
+            },
+            "settings": {
+                "data": {
+                    "attribute_metadata": "Schrijf metadata naar attributen"
+                },
+                "description": "Google Photos instellingen aanpassen.",
+                "title": "Instellingen"
+            }
+        }
+    }
+}

@@ -120,7 +120,7 @@ tap_action:
 
 ### Lovelace wall panel
 
-You can combine this integration with the [lovelace-wallpanel](https://github.com/j-a-n/lovelace-wallpanel) (min version 4.8) extension by [j-a-n](https://github.com/j-a-n) to show your photos as a screensaver on your dashboards.
+You can combine this integration with the [lovelace-wallpanel](https://github.com/j-a-n/lovelace-wallpanel) (min version 4.8) extension by [j-a-n](https://github.com/j-a-n) to show your photos as a screensaver on your dashboards. For the best results set the crop mode of the album to [Crop](#crop) or [Combine images](#combine-images).
 
 Home Assistant Dashboard configuration yaml (raw config):
 ```yaml
@@ -129,6 +129,7 @@ wallpanel:
   hide_toolbar: true
   hide_sidebar: true
   fullscreen: true
+  image_fit: cover
   image_url: media-entity://camera.google_photos_favorites_media,
   cards:
       # Note: For this markdown card to work you need to enable write metadata in the integration settings.
@@ -137,6 +138,8 @@ wallpanel:
         {{states.camera.google_photos_favorites_media.attributes.media_metadata.photo.cameraMake}},
         {{states.camera.google_photos_favorites_media.attributes.media_metadata.photo.cameraModel}}
 ```
+
+**Important** Make sure to align the image crop modes with the configuration of the wall panel, if not set correctly images might appear blurry. For crop mode [original](#original), set the `image_fit` property to `contain`.
 
 ## Service
 

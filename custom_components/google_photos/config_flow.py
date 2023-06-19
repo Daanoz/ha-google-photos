@@ -152,8 +152,16 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             album_list = []
             while request is not None:
                 result = request.execute()
-                album_list = album_list + result["albums"]
+                album_list = album_list + result.get("albums", [])
                 request = albums.list_next(request, result)
+
+            sharedAlbums = service.sharedAlbums()  # pylint: disable=no-member
+            fields = "sharedAlbums(id,title,mediaItemsCount),nextPageToken"
+            request = sharedAlbums.list(pageSize=50, fields=fields)
+            while request is not None:
+                result = request.execute()
+                album_list = album_list + result.get("sharedAlbums", [])
+                request = sharedAlbums.list_next(request, result)
             return list(filter(lambda a: ("id" in a and "title" in a), album_list))
 
         albums = await self.hass.async_add_executor_job(get_albums)

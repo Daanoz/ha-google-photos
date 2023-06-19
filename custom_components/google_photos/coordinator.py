@@ -576,11 +576,12 @@ class MediaDownloader:
             media_url = await self.hass.async_add_executor_job(
                 self._get_media_url, service
             )
+            media_url += size_str
             _LOGGER.debug("Loading %s", media_url)
             websession = async_get_clientsession(self.hass)
 
             async with async_timeout.timeout(10):
-                response = await websession.get(media_url + size_str)
+                response = await websession.get(media_url)
                 return await response.read()
 
         except asyncio.TimeoutError:

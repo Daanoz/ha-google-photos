@@ -16,6 +16,7 @@ deps
 home-assistant_v2*
 home-assistant.log*
 tts
+www
 scenes.yaml
 scripts.yaml
 secrets.yaml

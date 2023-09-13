@@ -32,6 +32,7 @@ async def async_setup_entry(
         coordinator = await coordinator_manager.get_coordinator(album_id)
         entities.append(GooglePhotosMediaCount(coordinator))
         entities.append(GooglePhotosFileName(coordinator))
+        entities.append(GooglePhotosFileURL(coordinator))
         entities.append(GooglePhotosCreationTimestamp(coordinator))
 
     async_add_entities(
@@ -88,6 +89,56 @@ class GooglePhotosFileName(SensorEntity):
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         self._read_value()
+
+class GooglePhotosFileURL(SensorEntity):
+    """Sensor to display current file URL"""
+
+    coordinator: Coordinator
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:text-short"
+
+    def __init__(self, coordinator: Coordinator) -> None:
+        """Initialize a sensor class."""
+        super().__init__()
+        self.coordinator = coordinator
+        self.entity_description = SensorEntityDescription(
+            key="fileurl", name="File URL", icon=self._attr_icon
+        )
+        album_id = self.coordinator.album["id"]
+        self._attr_device_info = self.coordinator.get_device_info()
+        self._attr_unique_id = f"{album_id}-fileurl"
+
+    async def async_added_to_hass(self) -> None:
+        """When entity is added to hass."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            self.coordinator.async_add_listener(self._handle_coordinator_update)
+        )
+        self._read_value()
+
+    @property
+    def should_poll(self) -> bool:
+        """No need to poll. Coordinator notifies entity of updates."""
+        return False
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return (
+            self.coordinator.last_update_success
+            and self.coordinator.current_media is not None
+        )
+
+    def _read_value(self) -> None:
+        if self.coordinator.current_media is not None:
+            self._attr_native_value = self.coordinator.current_media.get("productUrl")
+            self.async_write_ha_state()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self._read_value()
+
 
 
 class GooglePhotosCreationTimestamp(SensorEntity):

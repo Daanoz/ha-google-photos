@@ -125,6 +125,9 @@ class GooglePhotosBaseCamera(Camera):
             self._attr_extra_state_attributes["media_contributor_info"] = (
                 media.get("contributorInfo") or {}
             )
+            self._attr_extra_state_attributes["media_url"] = (
+                media.get("productUrl") or {}
+            )
             self.async_write_ha_state()
 
     def next_media(self, mode=None):

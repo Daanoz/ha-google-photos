@@ -130,9 +130,9 @@ class GooglePhotosBaseCamera(Camera):
             )
             self.async_write_ha_state()
 
-    def next_media(self, mode=None):
+    async def next_media(self, mode=None):
         """Load the next media."""
-        self.hass.async_add_job(self.coordinator.select_next(mode))
+        await self.coordinator.select_next(mode)
 
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None

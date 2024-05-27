@@ -193,7 +193,6 @@ class Coordinator(DataUpdateCoordinator):
             )
             self.current_media_secondary = None
             self.current_media_cache = {}
-            self.async_update_listeners()
         except aiohttp.ClientError as err:
             self.current_media_selected_timestamp = 0
             _LOGGER.error(
@@ -261,12 +260,15 @@ class Coordinator(DataUpdateCoordinator):
         if self.crop_mode == SETTING_CROP_MODE_COMBINED:
             result = await self._get_combined_media_data(width, height)
             if result is not None:
+                self.async_update_listeners()
                 self.current_media_cache[size_str] = result
                 return self.current_media_cache[size_str]
-
+        
+        self.current_media_secondary = None
         self.current_media_cache[size_str] = await self.current_media_primary.download(
             size_str
         )
+        self.async_update_listeners()
         return self.current_media_cache[size_str]
 
     async def _get_combined_media_data(self, width: int, height: int):

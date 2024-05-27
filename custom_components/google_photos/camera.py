@@ -115,6 +115,7 @@ class GooglePhotosBaseCamera(Camera):
             CONF_WRITEMETADATA, WRITEMETADATA_DEFAULT_OPTION
         )
         media = self.coordinator.current_media
+        media_secondary = self.coordinator.current_media_secondary
         if write_metadata:
             self._attr_extra_state_attributes["media_filename"] = (
                 media.get("filename") or ""
@@ -127,6 +128,21 @@ class GooglePhotosBaseCamera(Camera):
             )
             self._attr_extra_state_attributes["media_url"] = (
                 media.get("productUrl") or {}
+            if media_secondary is not None:
+                self._attr_extra_state_attributes["media_secondary"] = {"media_filename":(
+                    media_secondary.media.get("filename") or ""
+                ),
+                "media_metadata":(
+                    media_secondary.media.get("mediaMetadata") or {}
+                ),
+                "media_contributor_info": (
+                    media_secondary.media.get("contributorInfo") or {}
+                ),
+                "productUrl":(
+                    media_secondary.media.get("productUrl") or {}
+                )}
+            else:
+                self._attr_extra_state_attributes["media_secondary"] = ''
             )
             self.async_write_ha_state()
 

@@ -128,6 +128,7 @@ class GooglePhotosBaseCamera(Camera):
             )
             self._attr_extra_state_attributes["media_url"] = (
                 media.get("productUrl") or {}
+            )
             if media_secondary is not None:
                 self._attr_extra_state_attributes["media_secondary"] = {"media_filename":(
                     media_secondary.media.get("filename") or ""
@@ -143,7 +144,7 @@ class GooglePhotosBaseCamera(Camera):
                 )}
             else:
                 self._attr_extra_state_attributes["media_secondary"] = ''
-            )
+            
             self.async_write_ha_state()
 
     async def next_media(self, mode=None):

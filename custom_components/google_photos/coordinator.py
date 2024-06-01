@@ -139,6 +139,13 @@ class Coordinator(DataUpdateCoordinator):
         if self.current_media_primary is None:
             return None
         return self.current_media_primary.media
+    
+    @property
+    def current_secondary_media(self) -> MediaItem | None:
+        """Get current secondary media item"""
+        if self.current_media_secondary is None:
+            return None
+        return self.current_media_secondary.media
 
     def get_device_info(self) -> DeviceInfo:
         """Fetches device info for coordinator instance"""
@@ -193,6 +200,7 @@ class Coordinator(DataUpdateCoordinator):
             )
             self.current_media_secondary = None
             self.current_media_cache = {}
+            self.async_update_listeners()
         except aiohttp.ClientError as err:
             self.current_media_selected_timestamp = 0
             _LOGGER.error(

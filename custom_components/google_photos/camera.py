@@ -115,7 +115,7 @@ class GooglePhotosBaseCamera(Camera):
             CONF_WRITEMETADATA, WRITEMETADATA_DEFAULT_OPTION
         )
         media = self.coordinator.current_media
-        media_secondary = self.coordinator.current_media_secondary
+        media_secondary = self.coordinator.current_secondary_media
         if write_metadata:
             self._attr_extra_state_attributes["media_filename"] = (
                 media.get("filename") or ""
@@ -130,20 +130,23 @@ class GooglePhotosBaseCamera(Camera):
                 media.get("productUrl") or {}
             )
             if media_secondary is not None:
-                self._attr_extra_state_attributes["media_secondary"] = {"media_filename":(
-                    media_secondary.media.get("filename") or ""
-                ),
-                "media_metadata":(
-                    media_secondary.media.get("mediaMetadata") or {}
-                ),
-                "media_contributor_info": (
-                    media_secondary.media.get("contributorInfo") or {}
-                ),
-                "productUrl":(
-                    media_secondary.media.get("productUrl") or {}
-                )}
+                self._attr_extra_state_attributes["secondary_media_filename"] = (
+                    media_secondary.get("filename") or ""
+                )
+                self._attr_extra_state_attributes["secondary_media_metadata"] = (
+                    media_secondary.get("mediaMetadata") or {}
+                )
+                self._attr_extra_state_attributes["secondary_media_contributor_info"] = (
+                    media_secondary.get("contributorInfo") or {}
+                )
+                self._attr_extra_state_attributes["secondary_media_url"] = (
+                    media_secondary.get("productUrl") or {}
+                )
             else:
-                self._attr_extra_state_attributes["media_secondary"] = ''
+                self._attr_extra_state_attributes.pop("secondary_media_filename", None)
+                self._attr_extra_state_attributes.pop("secondary_media_metadata", None)
+                self._attr_extra_state_attributes.pop("secondary_media_contributor_info", None)
+                self._attr_extra_state_attributes.pop("secondary_media_url", None)
             
             self.async_write_ha_state()
 

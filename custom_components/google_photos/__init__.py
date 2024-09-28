@@ -7,6 +7,7 @@ from aiohttp.client_exceptions import ClientError, ClientResponseError
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import  issue_registry
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -39,6 +40,19 @@ async def async_migrate_entry(_, config_entry: ConfigEntry):
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Google Photos from a config entry."""
+
+    issue_registry.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id="integration_deprecation",
+        breaks_in_ha_version="2025.3",
+        is_fixable=False,
+        is_persistent=True,
+        severity=issue_registry.IssueSeverity.WARNING,
+        learn_more_url="https://github.com/Daanoz/ha-google-photos/issues/64",
+        translation_key="integration_deprecation",
+    )
+
     implementation = await async_get_config_entry_implementation(hass, entry)
     session = OAuth2Session(hass, entry, implementation)
     auth = AsyncConfigEntryAuth(async_get_clientsession(hass), session)

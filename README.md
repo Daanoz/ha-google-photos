@@ -1,5 +1,8 @@
 # Google Photos Integration for Home Assistant
 
+> [!WARNING]
+> This integration will be deprecated on March 31, 2025 due to Google Photo API changes, [read more](https://github.com/Daanoz/ha-google-photos/issues/64).
+
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]
 [![License][license-shield]][license]

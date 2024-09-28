@@ -55,5 +55,11 @@
                 "title": "Settings"
             }
         }
+    },
+    "issues": {
+        "integration_deprecation": {
+            "title": "Google Photos integration deprecated on March 31, 2025",
+            "description": "Due to changes in the Google Photo's API, this (custom) Google Photos integration will be deprecated on March 31, 2025. Starting from HA 2024.10 there is an official Google Photos integration that incorporates the new API."
+        }
     }
 }

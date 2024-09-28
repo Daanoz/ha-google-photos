@@ -1,5 +1,5 @@
 pip>=24.0
 colorlog
-homeassistant==2024.5.2
+homeassistant==2024.8.1
 google-api-python-client==2.71.0
 pillow
